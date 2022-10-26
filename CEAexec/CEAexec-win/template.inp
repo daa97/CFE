@@ -1,0 +1,19 @@
+ prob tp
+ p,bar= <PYPRES>
+ t,k= <PYTEMP>
+
+
+ reac
+ fuel H2                wt%=100.0000
+ oxid H2                wt%=100.0000
+
+ output short
+
+ output massf
+
+ output siunits
+
+ output transport
+
+end
+
