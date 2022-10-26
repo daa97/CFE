@@ -1,0 +1,19 @@
+ prob tp ions
+ p,bar= 12.0,13.2,14.8,16.5,18.0,20.0,22.5,25.0,28.0,31.0,35.0,39.0,44.0,49.0,54.0
+ t,k= 675,680,685,690,695,700,705,710,715,720,725,730,735,740,745
+
+
+ reac
+ fuel H2                wt%=100.0000
+ oxid H2                wt%=100.0000
+
+ output short
+
+ output massf
+
+ output siunits
+
+ output transport
+
+end
+
