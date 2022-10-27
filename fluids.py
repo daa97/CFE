@@ -6,7 +6,7 @@ import os.path
 
 debug = False
 def dbp(*args):
-    # Debug mode printouts
+    "Prints arguments if in debug mode"
     if debug:
         print(*args)
 
@@ -14,7 +14,7 @@ class Table:
     '''Fluid property table which contains some data indexed to pressure (columns) and temperature (rows). '''
 
     def __init__(self, P: np.array, T: np.array, data: np.array):
-        self.P = P
+        self.P_axis = P
         self.T = T
         self.csp_axis = []
         self.cst_axis = []
@@ -25,7 +25,7 @@ class Table:
         self.cs_p = [] 
         for i in range(len(self.T)):
             row = self.data[i,:]
-            x = self.P[~np.isnan(row)]
+            x = self.P_axis[~np.isnan(row)]
             y = row[~np.isnan(row)]
             if len(y) > 1:
                 self.cs_p.append(CubicSpline(x, y, extrapolate=False))
@@ -33,13 +33,13 @@ class Table:
             
         # create spline fits as a function of temperature at specified pressures    
         self.cs_t = []                   
-        for j in range(len(self.P)):
+        for j in range(len(self.P_axis)):
             column = self.data[:,j]
             x = self.T[~np.isnan(column)]
             y = column[~np.isnan(column)]
             if len(y) > 1:
                 self.cs_t.append(CubicSpline(x, y, extrapolate=False))
-                self.cst_axis.append(self.P[j])
+                self.cst_axis.append(self.P_axis[j])
     
     # get property value from pressure and temperature
     def interp(self, P1, T1) -> float:
@@ -205,29 +205,6 @@ class FluidState:
                 self.properties[pr] = props[pr]
             elif pr.known and (not pr.axis):
                 self.properties[pr] = pr.table.interp(P1=self.P, T1=self.T)
-        '''
-        # Set specific heat property
-        self.cp = self.fluid.tables['cp'].interp(P1=self.P, T1=self.T)
-        
-        # Set density property
-        if 'r' in keys:
-            self.r = props['r']
-        else:
-            self.r = self.fluid.tables['r'].interp(P1=self.P, T1=self.T)
-        self.v = 1 / self.r
-        
-        # Set enthalpy property
-        if 'h' in keys:
-            self.h = props['h']
-        else:
-            self.h = self.fluid.tables['h'].interp(P1=self.P, T1=self.T)
-        
-        # set entropy property
-        if 's' in keys:
-            self.s = props['s']
-        else:
-            self.s = self.fluid.tables['s'].interp(P1=self.P, T1=self.T)
-        '''
     
     def double_solve(self, value1, table1, value2, table2) -> "float, float":
         '''solve for both pressure and temperature as a function of other variables'''
@@ -319,7 +296,7 @@ class Fluid:
         return f"Fluid object '{self.name}'"
     
     def __call__(self, **kwargs: float) -> FluidState:
-        return self.state(**kwargs)   
+        return self.state(**kwargs)
 
 
     def __getattr__(self, __name: str): 
@@ -327,11 +304,14 @@ class Fluid:
             if p.knownas(__name):
                 return p
 
-    # Setting up API to return a full state with all properties based upon only two values
+    
     def state(self, **kwargs: float) -> FluidState:
-    # e.g.:
-        # pump_exit = H2.state(P=5, T=800); print(pump_exit.h)
-        # plt.plot(range(1, 5), [H2.state(pressure=Pi, s=1800).v for Pi in range(1, 5)])
+        '''Returns a fluid state given two fluid properties. Property values can then be indexed based upon the given state.
+        Examples:
+        `pump_exit = H2.state(P=5, T=800); print(pump_exit.h)`
+        `plt.plot(range(1, 5), [H2.state(pressure=Pi, s=1800).v for Pi in range(1, 5)])`
+        '''
+        
         if len(kwargs)==2:
             kw1 = list(kwargs.keys())[0]
             dbp("KWARGS:", kwargs)
