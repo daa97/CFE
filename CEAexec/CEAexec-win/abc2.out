@@ -1,0 +1,89 @@
+
+ *******************************************************************************
+
+         NASA-GLENN CHEMICAL EQUILIBRIUM PROGRAM CEA2, MAY 21, 2004
+                   BY  BONNIE MCBRIDE AND SANFORD GORDON
+      REFS: NASA RP-1311, PART I, 1994 AND NASA RP-1311, PART II, 1996
+
+ *******************************************************************************
+
+
+
+  prob tp
+  p,bar= 1
+  t,k= 300, 250, 200, 175, 150, 125, 100
+  
+  
+  reac
+  na H2                wt%=100.0000
+  output short
+  output siunits
+  output transport
+  
+ end
+
+ THE TEMPERATURE=  0.1750E+03 IS OUT OF RANGE FOR POINT    4(EQLBRM)
+ THE TEMPERATURE=  0.1500E+03 IS OUT OF RANGE FOR POINT    5(EQLBRM)
+
+ CALCULATIONS STOPPED AFTER POINT  5(EQLBRM)
+
+
+
+
+               THERMODYNAMIC EQUILIBRIUM PROPERTIES AT ASSIGNED
+
+                           TEMPERATURE AND PRESSURE
+
+ CASE =                
+
+             REACTANT                    WT FRACTION      ENERGY      TEMP
+                                          (SEE NOTE)     KJ/KG-MOL      K  
+             H2                           1.0000000         0.000      0.000
+
+ O/F=    0.00000  %FUEL=100.000000  R,EQ.RATIO= 0.000000  PHI,EQ.RATIO= 0.000000
+
+ THERMODYNAMIC PROPERTIES
+
+ P, BAR            1.0000   1.0000   1.0000   1.0000   1.0000
+ T, K              300.00   250.00   200.00   175.00   150.00
+ RHO, KG/CU M    8.0818-2 9.6981-2 1.2123-1 1.3854-1 1.6164-1
+ H, KJ/KG          26.469  -683.66 -1376.71 -1713.20 -2041.20
+ U, KJ/KG        -1210.88 -1714.78 -2201.61 -2434.99 -2659.87
+ G, KJ/KG        -19447.8 -16265.0 -13223.6 -11764.8 -10353.6
+ S, KJ/(KG)(K)    64.9143  62.3255  59.2344  57.4376  55.4159
+
+ M, (1/n)           2.016    2.016    2.016    2.016    2.016
+ (dLV/dLP)t      -1.00000 -1.00000 -1.00000 -1.00000 -1.00000
+ (dLV/dLT)p        1.0000   1.0000   1.0000   1.0000   1.0000
+ Cp, KJ/(KG)(K)   14.3109  14.0666  13.6144  13.2952  12.9465
+ GAMMAs            1.4049   1.4149   1.4346   1.4498   1.4675
+ SON VEL,M/SEC     1318.5   1207.8   1087.9   1022.9    952.8
+
+ TRANSPORT PROPERTIES (GASES ONLY)
+   CONDUCTIVITY IN UNITS OF MILLIWATTS/(CM)(K)
+
+ VISC,MILLIPOISE  0.08974  0.07937  0.06817  0.06209  0.00000
+
+  WITH EQUILIBRIUM REACTIONS
+
+ Cp, KJ/(KG)(K)   14.3109  14.0666  13.6144  13.2952   0.0000
+ CONDUCTIVITY      1.8781   1.6283   1.3158   1.1183   0.0000
+ PRANDTL NUMBER    0.6838   0.6856   0.7053   0.7382   0.0000
+
+  WITH FROZEN REACTIONS
+
+ Cp, KJ/(KG)(K)   14.3109  14.0666  13.6144  13.2952   0.0000
+ CONDUCTIVITY      1.8781   1.6283   1.3158   1.1183   0.0000
+ PRANDTL NUMBER    0.6838   0.6856   0.7053   0.7382   0.0000
+
+ MOLE FRACTIONS
+
+ *H2              1.00000  1.00000  1.00000  1.00000  1.00000
+
+  * THERMODYNAMIC PROPERTIES FITTED TO 20000.K
+
+ NOTE. WEIGHT FRACTION OF FUEL IN TOTAL FUELS AND OF OXIDANT IN TOTAL OXIDANTS
+
+
+
+  
