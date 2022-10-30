@@ -13,7 +13,7 @@ r2 = 0.045
 rho_u = 17100
 void_frac = 0.5
 omega = 7000 * (2 * np.pi / 60)
-t_init = 10 # seconds for spin-up
+t_init = 1 # seconds for spin-up
 
 rho_uh = (1 - void_frac) * rho_u
 mass_u = mass(r1, r2, l, rho_uh)
@@ -33,9 +33,7 @@ dp_pm = -9e3
 eta_turbopump =1
 eta_cfeturb =1
 
-
 dh_cfeturb = - cfe_power / cfe_flow
-q_uran = 3e7
 
 dh_turbo = -6e6
 q_nozzle = 8e5
@@ -56,18 +54,14 @@ hot_isent = H2(h=cfe.h-dh_cfeturb, s=cfe.s)             # state 8
 hot = H2(h=cfe.h-dh_cfeturb*eta_cfeturb, P=hot_isent.P) 
 mix = H2(h=hot.h-q_regen2, P=hot.P)                     # state 8
 turbo = H2(h=mix.h, P=mix.P)                # state 4
-start = H2(P=P_tank, T=T_tank)  
-print(start)
-#tfunc1 = H2.s.table.t_func_p(Y1=start.s)
-#tfunc2 = H2.s.table.t_func_p(Y1=turbo.s)
-#regen = H2(h=turbo.h-dh_turbo, s=turbo.s)               # state 3
+start = H2(P=P_tank, T=T_tank)
 
 while True:
     regen = H2(h=turbo.h-dh_turbo, s=turbo.s)               # state 3
     pumped = H2(P=regen.P, s=start.s)
     hp = pumped.h - start.h
     res = hp + dh_turbo
-    print("RESIDUAL:", res)
+    print("Converging ---- enthalpy error:", res)
     if abs(res) < 10:
         break
     dh_turbo -= res
@@ -88,25 +82,45 @@ throt = H2(h=bypass.h, P=mix.P)                        # state 5
 
 
 
-
-states = [start, pumped, regen, turbo, bypass, throt, mix, hot, cfe, pm, core]
+states = [start, pumped, regen, turbo, mix, bypass, throt, hot, cfe, pm, core]
 print(len(states))
 flow1 = [start, pumped, regen, bypass, throt, mix, hot, cfe, pm, core]
-flow2 = [start, pumped, regen, turbo, mix, hot, cfe, pm, core]
-#plt.plot([point.s for point in flow1[:-1]], [point.T for point in flow1[:-1]])
-plt.plot([point.s for point in flow2[:-1]], [point.T for point in flow2[:-1]])
-i=11
+flow2 = [regen, turbo, mix]
+n = 25
+f1 = []
+for i in range(len(flow1)-1):
+    p1 = flow1[i]
+    f1.append(p1)
+    p2 = flow1[i+1]
+    for j in range(1,n):
+        if p1.s == p2.s:
+            f1.append(H2(s=p1.s, h=(p2.h-p1.h)*j/n + p1.h))
+        elif p1.h == p2.h:
+            f1.append(H2(h=p1.h, s=(p2.s-p1.s)*j/n + p1.s))
+        else:
+            f1.append(H2(h=(p2.h-p1.h)*j/n + p1.h, P=(p2.P-p1.P)*j/n + p1.P))
+f1.append(flow1[-1])
+
+
+
+plt.plot([point.v for point in f1], [point.P for point in f1])
+plt.plot([point.v for point in flow2], [point.P for point in flow2])
+
 T=range(700, 1200)
 print("Max Pressure:", pumped.P)
 s = H2.s.table.func_t(P1=pumped.P)
 #plt.plot(s(T), T)
-for point in states[:-1]:
-    i -=1
-    plt.plot(point.s, point.T, '.', label=i)
+styles = '.*^v+x'
+for i, point in enumerate(states):
+    plt.plot(point.v, point.P, styles[i%6], label=i+1)
+
 
 
 for point in states:
     print(point.T, "|", point.s)
+plt.legend()
+plt.ylabel("T (K)")
+plt.xlabel("s, (J/kg K)")
 plt.show()
 
 

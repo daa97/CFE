@@ -1,3 +1,4 @@
+from re import A
 import numpy as np
 import csv
 from scipy.interpolate import CubicSpline, PPoly
@@ -14,7 +15,7 @@ def dbp(*args):
 class Table:
     '''Fluid property table which contains some data indexed to pressure (columns) and temperature (rows). '''
 
-    def __init__(self, P: np.array, T: np.array, data: np.array):
+    def __init__(self, property, P: np.array, T: np.array, data: np.array):
         self.P_axis = P
         self.T_axis = T
         self.csp_axis = []
@@ -24,6 +25,7 @@ class Table:
         self.P_range = (min(self.P_axis), max(self.P_axis))
         self.T_range = (min(self.T_axis), max(self.T_axis))
         self.data_range = (np.min(self.data), np.max(self.data))
+        self.property = property
 
 
         # create spline fits as a function of pressure at specified temperatures
@@ -64,7 +66,7 @@ class Table:
         FT = self.func_t(P1)
         Ans = (FP(P1) + FT(T1)) / 2
         if np.isnan(Ans):
-            raise ValueError("No solution found")
+            print(f"WARNING: fluid property '{self.property.name}' could not be found at temperature {T1} & pressure {P1}")
         return Ans
     
     def func_t(self, P1) -> PPoly:
@@ -159,11 +161,15 @@ class FluidProperty:
         self.axis = axis
         self.tag = tag
         self.units = units
+        if isinstance(alt, str):
+            alt = [alt]
+        else:
+            alt = list(alt)
         self.altnames = alt
         self.file = file
         self.reversible = rev
         self.known = (axis or (self.file is not None))
-        self.callnames = (self.tag.upper(), self.name.upper().replace(" ", "_"), self.altnames)
+        self.callnames = [self.tag.upper(), self.name.upper().replace(" ", "_")] + self.altnames
         
     def read_table(self, fname=None):
         if fname is not None:
@@ -173,7 +179,7 @@ class FluidProperty:
             with open(self.file, mode='r', newline='') as f:
                 reader = csv.reader(f)
                 data = np.array([[s.replace(',', '') for s in r] for r in reader])
-            self.table = Table(P=data[0,1:].astype(float), T=data[1:,0].astype(float), data=data[1:,1:].astype(float))
+            self.table = Table(self, P=data[0,1:].astype(float), T=data[1:,0].astype(float), data=data[1:,1:].astype(float))
 
     def knownas(self, string):
         return (string.upper().replace(" ", "_") in self.callnames)
