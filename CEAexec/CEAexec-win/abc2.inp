@@ -1,10 +1,10 @@
  prob tp
  p,bar= 1
- t,k= 300, 250, 200, 175, 150, 125, 100
+ t,k= 200, 20, 30, 40, 50
 
 
  reac
- na H2                wt%=100.0000
+ na H2(L)                wt%=100.0000
  output short
  output siunits
  output transport

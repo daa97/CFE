@@ -1,11 +1,12 @@
  prob tp ions
  p,bar= 100
- t,k= 150, 200, 300
+ t,k= 350, 200, 300
 
 
  reac
- fuel H2                wt%=100.0000
- oxid H2                wt%=100.0000
+
+ na H2                mol=0.5
+ # ox O2                mol=0.5
 
  output short
 

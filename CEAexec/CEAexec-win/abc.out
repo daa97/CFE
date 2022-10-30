@@ -11,12 +11,13 @@
 
   prob tp ions
   p,bar= 100
-  t,k= 150, 200, 300
+  t,k= 350, 200, 300
   
   
   reac
-  fuel H2                wt%=100.0000
-  oxid H2                wt%=100.0000
+  
+  na H2                mol=0.5
+  # ox O2                mol=0.5
   
   output short
   
@@ -28,9 +29,6 @@
   
  end
 
- THE TEMPERATURE=  0.1500E+03 IS OUT OF RANGE FOR POINT    1(EQLBRM)
-
- CALCULATIONS STOPPED AFTER POINT  1(EQLBRM)
 
 
 
@@ -41,54 +39,51 @@
 
  CASE =                
 
-             REACTANT                    WT FRACTION      ENERGY      TEMP
-                                          (SEE NOTE)     KJ/KG-MOL      K  
- FUEL        H2                           1.0000000         0.000      0.000
- OXIDANT     H2                           1.0000000         0.000      0.000
+             REACTANT                       MOLES         ENERGY      TEMP
+                                                         KJ/KG-MOL      K
+             H2                           0.5000000         0.000      0.000
 
- O/F=    1.00000  %FUEL= 50.000000  R,EQ.RATIO= 0.000000  PHI,EQ.RATIO=-1.000000
+ O/F=    0.00000  %FUEL=100.000000  R,EQ.RATIO= 0.000000  PHI,EQ.RATIO= 0.000000
 
  THERMODYNAMIC PROPERTIES
 
- P, BAR            100.00
- T, K              150.00
- RHO, KG/CU M    1.6164 1
- H, KJ/KG        -2041.20
- U, KJ/KG        -2659.88
- G, KJ/KG        -7504.49
- S, KJ/(KG)(K)    36.4219
+ P, BAR            100.00   100.00   100.00
+ T, K              350.00   200.00   300.00
+ RHO, KG/CU M    6.9272 0 1.2123 1 8.0818 0
+ H, KJ/KG          745.34 -1376.71   26.469
+ U, KJ/KG         -698.23 -2201.61 -1210.88
+ G, KJ/KG        -16102.4 -9424.79 -13749.6
+ S, KJ/(KG)(K)    48.1364  40.2404  45.9202
 
- M, (1/n)           2.016
- (dLV/dLP)t      -1.00000
- (dLV/dLT)p        1.0000
- Cp, KJ/(KG)(K)   12.9466
- GAMMAs            1.4675
- SON VEL,M/SEC      952.9
+ M, (1/n)           2.016    2.016    2.016
+ (dLV/dLP)t      -1.00000 -1.00000 -1.00000
+ (dLV/dLT)p        1.0000   1.0000   1.0000
+ Cp, KJ/(KG)(K)   14.4287  13.6144  14.3109
+ GAMMAs            1.4003   1.4346   1.4049
+ SON VEL,M/SEC     1421.8   1087.9   1318.5
 
  TRANSPORT PROPERTIES (GASES ONLY)
    CONDUCTIVITY IN UNITS OF MILLIWATTS/(CM)(K)
 
- VISC,MILLIPOISE  0.00000
+ VISC,MILLIPOISE  0.00000  0.00000  0.00000
 
   WITH EQUILIBRIUM REACTIONS
 
- Cp, KJ/(KG)(K)    0.0000
- CONDUCTIVITY      0.0000
- PRANDTL NUMBER    0.0000
+ Cp, KJ/(KG)(K)   14.4287  13.6144  14.3109
+ CONDUCTIVITY      0.0000   0.0000   0.0000
+ PRANDTL NUMBER    2.3355   2.4036   2.3304
 
   WITH FROZEN REACTIONS
 
- Cp, KJ/(KG)(K)    0.0000
- CONDUCTIVITY      0.0000
- PRANDTL NUMBER    0.0000
+ Cp, KJ/(KG)(K)   14.4287  13.6144  14.3109
+ CONDUCTIVITY      0.0000   0.0000   0.0000
+ PRANDTL NUMBER    2.3355   2.4036   2.3304
 
  MASS FRACTIONS
 
- *H2              1.00000
+ *H2              1.00000  1.00000  1.00000
 
   * THERMODYNAMIC PROPERTIES FITTED TO 20000.K
-
- NOTE. WEIGHT FRACTION OF FUEL IN TOTAL FUELS AND OF OXIDANT IN TOTAL OXIDANTS
 
 
 
