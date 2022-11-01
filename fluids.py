@@ -16,53 +16,70 @@ class Table:
     '''Fluid property table which contains some data indexed to pressure (columns) and temperature (rows). '''
 
     def __init__(self, property, P: np.array, T: np.array, data: np.array):
-        self.P_axis = P
-        self.T_axis = T
-        self.csp_axis = []
-        self.cst_axis = []
-        self.data = data            # fluid property values
-        self.tol = 1e-5             # tolerance for removing duplicate values
-        self.P_range = (min(self.P_axis), max(self.P_axis))
-        self.T_range = (min(self.T_axis), max(self.T_axis))
-        self.data_range = (np.min(self.data), np.max(self.data))
-        self.property = property
+        self.P_axis = P                     # pressure values corresponding to each column
+        self.T_axis = T                     # temperature values corresponding to each row
+        self.csp_axis = []                  # temperature values corresponding to each spline f(P)
+        self.cst_axis = []                  # pressure values corresponding to each spline f(T)
+        self.data = data                    # fluid property values
+        self.tol = 1e-5                     # tolerance for removing duplicate solutions
+
+        self.P_range = (min(self.P_axis), max(self.P_axis))     # pressure range of the table
+        self.T_range = (min(self.T_axis), max(self.T_axis))     # temperature range of the table
+        self.data_range = (np.min(self.data), np.max(self.data)) # range of property values in the table
+        self.property = property                                # metadata associated with the physical property
 
 
         # create spline fits as a function of pressure at specified temperatures
         self.cs_p = [] 
         for i in range(len(self.T_axis)):
-            row = self.data[i,:]
-            x = self.P_axis[~np.isnan(row)]
-            y = row[~np.isnan(row)]
-            if len(y) > 1:
-                self.cs_p.append(CubicSpline(x, y, extrapolate=extra))
+            row = self.data[i,:]                # index values at each temperature
+            x = self.P_axis[~np.isnan(row)]     # filter out pressure values which are missing property data
+            y = row[~np.isnan(row)]             # filter out missing property data
+
+            if len(y) > 1:                      # check if at least two data values exist in row
+                # add spline function of pressure, and corresponding temperature value
+                self.cs_p.append(CubicSpline(x, y, extrapolate=extra))  
                 self.csp_axis.append(self.T_axis[i])
             
         # create spline fits as a function of temperature at specified pressures    
         self.cs_t = []                   
         for j in range(len(self.P_axis)):
-            column = self.data[:,j]
-            x = self.T_axis[~np.isnan(column)]
-            y = column[~np.isnan(column)]
+            column = self.data[:,j]             # index values at each pressure
+            x = self.T_axis[~np.isnan(column)]  # filter out temperature values which are missing property data
+            y = column[~np.isnan(column)]       # filter out missing property data
+
+            # check if at least two data values exist in column
             if len(y) > 1:
+                # add spline function of temperature, and corresponding pressure value
                 self.cs_t.append(CubicSpline(x, y, extrapolate=extra))
                 self.cst_axis.append(self.P_axis[j])
+
+    
     def check_range(self, P1=None, T1=None, Y1=None):
         "check if input property values are within range of table"
-        if P1 is not None:
-            if P1<self.P_range[0] or P1>self.P_range[1]:
-                raise ValueError(f"Pressure of {P1} is not within tabulated range of {self.P_range}")
-        if T1 is not None:
-            if T1<self.T_range[0] or T1>self.T_range[1]:
-                raise ValueError(f"Temperature of {T1} is not within tabulated range of {self.T_range}")
-        if Y1 is not None:
-            if Y1<self.data_range[0] or Y1>self.data_range[1]:
-                raise ValueError(f"Property value of {Y1} is not within tabulated range of {self.data_range}")
+        # For each value given, checks if number is invalid (NaN) or outside of known range
 
+        # check pressure if given:
+        if P1 is not None:
+            if P1<self.P_range[0] or P1>self.P_range[1] or np.isnan(P1):
+                raise ValueError(f"Pressure value of {P1} is not within tabulated range of {self.P_range}")
+
+        # check temperature if given:
+        if T1 is not None:
+            if T1<self.T_range[0] or T1>self.T_range[1] or np.isnan(T1):
+                raise ValueError(f"Temperature value of {T1} is not within tabulated range of {self.T_range}")
+
+        # check property value if given
+        if Y1 is not None:
+            if Y1<self.data_range[0] or Y1>self.data_range[1] or np.isnan(Y1):
+                raise ValueError(f"{self.property.name} value of {Y1} is not within tabulated range of {self.data_range}")
+
+    
     def interp(self, P1, T1) -> float:
-        "Obtain property value from pressure and temperature"
-        self.check_range(P1=P1, T1=T1)
-        FP = self.func_p(T1)
+        "Obtain property value from pressure and temperature through interpolation"
+
+        self.check_range(P1=P1, T1=T1)      # ensure provided values are in table range
+        FP = self.func_p(T1)                # 
         FT = self.func_t(P1)
         Ans = (FP(P1) + FT(T1)) / 2
         if np.isnan(Ans):
@@ -71,7 +88,7 @@ class Table:
     
     def func_t(self, P1) -> PPoly:
         "Property as a function of temperature at specified pressure P1"
-        self.check_range(P1=P1)
+        self.check_range(P1=P1)             # ensure provided values are in table range
         at_p1 = []
         tvals = []
         for i in range(len(self.csp_axis)):
@@ -85,7 +102,7 @@ class Table:
     
     def func_p(self, T1) -> PPoly:
         "Property as a function of pressure at specified temperature T1"
-        self.check_range(T1=T1)
+        self.check_range(T1=T1)             # ensure provided values are in table range
         at_t1 = []
         pvals = []
         for j in range(len(self.cst_axis)):
@@ -100,32 +117,22 @@ class Table:
     
     def get_p(self, T1, Y1) -> float:
         '''get pressure value from given temperature and property value (not recommended for enthalpy or cp tables).'''
-        self.check_range(T1=T1, Y1=Y1)
-        func = self.func_p(T1)
+        self.check_range(T1=T1, Y1=Y1)      # ensure provided values are in table range
+        func = self.func_p(T1)              
         solns = self.combine(func.solve(Y1))
         if len(solns)!=1:
-            print(solns)
-            raise ValueError("No Unique Solution Found")
+            raise ValueError(f"No Unique Solution Found. Solution list: {solns}")
         return solns[0]
     
     def t_func_p(self,Y1) -> PPoly:
         '''Get temperature as a function of pressure for given property value'''
-        self.check_range(Y1=Y1)
-        # find temperature at tabulated pressures and given property value Y1
-        intercepts = dict()
-        dbp(Y1)
-        dbp(self.T_axis)
-        for i in range(len(self.cs_t)):
-            Ti = self.combine(self.cs_t[i].solve(Y1))
-            dbp(Ti)
-            # Check that there is only one valid temperature solution at each pressure
-            if len(Ti)==0:
-                pass
-            elif len(Ti)==1:
-                intercepts[self.cst_axis[i]] = Ti[0]
-            else:
-                raise ValueError("No Unique Solution Found")
+        self.check_range(Y1=Y1)             # ensure provided values are in table range
         
+        # Find temperature at tabulated pressures and given property value Y1
+        intercepts = dict()
+        for i in range(len(self.cs_t)):     # 
+            Ti = self.combine(self.cs_t[i].solve(Y1))
+       
         # return function T(P) created from interpolation of these points
         dbp(list(intercepts.keys()), list(intercepts.values()))
         return CubicSpline(list(intercepts.keys()), list(intercepts.values()), extrapolate=extra)
@@ -135,28 +142,32 @@ class Table:
         '''Get temperature from pressure and property value'''
         self.check_range(P1=P1, Y1=Y1)
         func = self.func_t(P1)
-        solns = self.combine(func.solve(Y1))
-        if len(solns)!=1:
-            print(solns)
-            raise ValueError("No Unique Solution Found")
-        return solns[0]
-    
+        return self.combine(func.solve(Y1))
+        
     def combine(self, vals: np.array) -> list:
-        '''Remove duplicate and NaN solutions'''
-        unique = []
-        for i in range(len(vals)):
-            for j in range(i,len(vals)):
-                if i!=j and (abs(vals[i] - vals[j]) < self.tol):
-                    break
-                if np.isnan(vals[i]):
-                    break
+        '''Remove duplicate and NaN solutions. 
+        Should converge to a single solution or raise an error.'''
+        unique = []                                 # list of unique solutions
+
+        equal = lambda a,b: abs(a-b) < self.tol     # checks if two values are nearly equal to within specified tolerance
+        for i in range(len(vals)):                  # loop through each value in list
+            for j in range(i,len(vals)):            # loop through values again to check pairs of values
+                
+                
+                if i!=j and equal(vals[i], vals[j]):
+                    break                   # don't include value i if equal to a later value
+                elif np.isnan(vals[i]):
+                    break                   # don't include value i if NaN
             else:
-                unique.append(vals[i])
-        return unique
+                unique.append(vals[i])      # keep value for output if it is valid and unique
+
+        if len(unique)!=1:                  # check that exactly 1 solution exists
+            raise ValueError(f"No Unique Solution Found. Solution list: {unique}")
+        return unique[0]                    # return only solution
 
 class FluidProperty:
     '''Representation of a fluid property such as pressure or entropy'''
-    def __init__(self, tag:str, name:str, alt:tuple, rev:bool=True, file:str=None, units:str=None, axis=False):
+    def __init__(self, tag:str, name:str, alt:list, rev:bool=True, file:str=None, units:str=None, axis=False):
         self.name = name
         self.axis = axis
         self.tag = tag
@@ -298,10 +309,7 @@ class FluidState:
             else:
                 continue
             break
-    
         c=np.array(c_new).transpose(); x=np.array(x_new)
-        dbp(c.shape)
-        dbp(x.shape)
         difference = PPoly(c=c, x=x, extrapolate=False)
         pressure_values = table1.combine(difference.solve(0))
         if len(pressure_values)!=1:
@@ -333,7 +341,7 @@ class Fluid:
             FluidProperty(tag='s', name='Entropy', alt=('S', 'ENTROPY'), rev=True),                         # Entropy
             FluidProperty(tag='cp', name='Specific Heat', alt=('C'), rev=False),                            # Specific heat
             FluidProperty(tag='gamma', name='Specific Heat Ratio', alt=('Y'), rev=False),                   # gamma, sp. heat ratio
-            FluidProperty(tag='nu', name='Kinematic Viscosity', alt=('VISC', 'VISCOSITY'), rev=False),      # viscosity (kinematic)
+            FluidProperty(tag='mu', name='Dynamic Viscosity', alt=('VISC', 'VISCOSITY'), rev=False),      # viscosity (dynamic)
             FluidProperty(tag='a', name='Speed of Sound', alt=(), rev=False),                               # speed of sound
             FluidProperty(tag='gibbs', name='Gibbs Free Energy', alt=('GFE'), rev=False),                   # gibbs free energy
             FluidProperty(tag='k', name='Thermal Conductivity', alt=("CONDUCTIVITY"), rev=False),                         # thermal conductivity
@@ -395,9 +403,7 @@ class Process:
         # TODO: Define process which goes from one state to another
         pass
 
-
-#dir = "CEA Property Tables"
-dir = "Updated"
+dir = "H2 Property Tables\\Updated" # Directory of csv property files
 prop_files = dict()
 for file in os.listdir(dir):
     tag = file.split(".")[0]
