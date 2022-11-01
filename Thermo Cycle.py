@@ -7,6 +7,7 @@ def moment(mass, R1, R2):
 def mass(R1, R2, length, density):
     return np.abs(np.pi * (R2**2 - R1**2) * length) * density
 
+
 l = 0.84
 r1 = 0.03
 r2 = 0.045
@@ -19,7 +20,9 @@ rho_uh = (1 - void_frac) * rho_u
 mass_u = mass(r1, r2, l, rho_uh)
 moment_u = moment(mass_u, r1, r2)
 ke_cfe = (1/2) * moment_u * omega**2
-cfe_power = ke_cfe / t_init
+power_per_bearing = 50
+bearing_loss = power_per_bearing * 3
+cfe_power = ke_cfe / t_init + bearing_loss
 cfe_flow = 0.1
 
 P_tank = 1.5e5
@@ -41,8 +44,8 @@ q_nozzle = 8e5
 y_turb = 1            # fraction going into turbopump
 dh_pump = -dh_turbo * eta_turbopump * y_turb
 
-q_regen1 = 1e6 *0         # bypass heating states 3-6
-q_regen2 = 1e6 *0         # pre-cfe heating states 5-8
+q_regen1 = 6e4         # bypass heating states 3-6
+q_regen2 = 6e4         # pre-cfe heating states 5-8
 y_throt = 1-y_turb
 
 H2 = Fluid("Hydrogen", prop_files)
@@ -79,14 +82,11 @@ throt = H2(h=bypass.h, P=mix.P)                        # state 5
 
 
 
-
-
-
 states = [start, pumped, regen, turbo, mix, bypass, throt, hot, cfe, pm, core]
 print(len(states))
 flow1 = [start, pumped, regen, bypass, throt, mix, hot, cfe, pm, core]
 flow2 = [regen, turbo, mix]
-n = 25
+n = 250
 f1 = []
 for i in range(len(flow1)-1):
     p1 = flow1[i]
@@ -94,17 +94,18 @@ for i in range(len(flow1)-1):
     p2 = flow1[i+1]
     for j in range(1,n):
         if p1.s == p2.s:
-            f1.append(H2(s=p1.s, h=(p2.h-p1.h)*j/n + p1.h))
+            pass
+            #f1.append(H2(s=p1.s, h=(p2.h-p1.h)*j/n + p1.h))
         elif p1.h == p2.h:
-            f1.append(H2(h=p1.h, s=(p2.s-p1.s)*j/n + p1.s))
+            pass
+            #f1.append(H2(h=p1.h, s=(p2.s-p1.s)*j/n + p1.s))
         else:
             f1.append(H2(h=(p2.h-p1.h)*j/n + p1.h, P=(p2.P-p1.P)*j/n + p1.P))
 f1.append(flow1[-1])
 
 
-
-plt.plot([point.v for point in f1], [point.P for point in f1])
-plt.plot([point.v for point in flow2], [point.P for point in flow2])
+plt.plot([point.s/1e3 for point in f1], [point.T for point in f1])
+plt.plot([point.s/1e3 for point in flow2], [point.T for point in flow2])
 
 T=range(700, 1200)
 print("Max Pressure:", pumped.P)
@@ -112,15 +113,20 @@ s = H2.s.table.func_t(P1=pumped.P)
 #plt.plot(s(T), T)
 styles = '.*^v+x'
 for i, point in enumerate(states):
-    plt.plot(point.v, point.P, styles[i%6], label=i+1)
-
+    plt.plot(point.s/1e3, point.T, styles[i%6], label=i+1)
 
 
 for point in states:
     print(point.T, "|", point.s)
 plt.legend()
-plt.ylabel("T (K)")
-plt.xlabel("s, (J/kg K)")
+plt.ylabel("Temperature (K)")
+plt.xlabel("Entropy (kJ/kg K)")
+
+#current_values = plt.gca().get_yticks()
+#plt.gca().set_yticklabels(['{:,.0f}'.format(x) for x in current_values])
+#current_values = plt.gca().get_xticks()
+#plt.gca().set_xticklabels(['{:,.0f}'.format(x) for x in current_values])
+
 plt.show()
 
 
