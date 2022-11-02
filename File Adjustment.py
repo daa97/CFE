@@ -6,7 +6,7 @@ rang = np.array([[1, 1.1, 1.2, 1.32, 1.48, 1.65, 1.8, 2, 2.25, 2.5, 2.8, 3.1, 3.
 P = rang * np.array([[10**x for x in range(2,8)]]).transpose()
 P = np.round(P, 6)
 P = P.flatten()
-T = np.arange(20, 205, 10, dtype=int)
+T = np.arange(25, 26 dtype=int)
 
 
 
