@@ -107,10 +107,11 @@ class Table:
         self.check_range(Y1=Y1)             # ensure provided values are in table range
         
         # solve for temperature at each pressure
-        print(Y1); T_points = []; P_points = []
+        print(Y1); 
+        T_points = []; P_points = []
         for i in range(len(self.tsplines)):
             tpt = self.tsplines[i].solve(Y1)
-            print(tpt)
+            #print(tpt)
             if len(tpt)>0:
                 T_points.append(self.combine(tpt))
                 P_points.append(self.tsplines_Paxis[i])
@@ -124,10 +125,10 @@ class Table:
         func = self.func_t(P1)                  # define 1D property function at given pressure
         return self.combine(func.solve(Y1))     # solve for temperature given property value
         
-    def combine(self, vals: np.array) -> list:
+    def combine(self, values: np.array) -> list:
         '''Remove duplicate and NaN solutions. 
         Should converge to a single solution or raise an error.'''
-        vals = vals[~np.isnan(vals)]                # filter out NaN values
+        vals = values[~np.isnan(values)]                # filter out NaN values
         unique = []                                 # list of unique solutions
         equal = lambda a,b: abs(a-b) < self.tol     # checks if two values are nearly equal to within specified tolerance
         for i, vi in enumerate(vals):               # loop through each value in list
@@ -247,7 +248,7 @@ class FluidState:
         Should mostly only be called internally by other fluid state methods'''
         keys = list(props.keys())
         vals = list(props.values())
-        print([k.name for k in keys], vals)
+        #print([k.name for k in keys], vals)
         t1_p = keys[0].t_func_p(vals[0])        # function T(P) given property 1
         t2_p = keys[1].t_func_p(vals[1])        # function T(P) given property 2
         
@@ -278,6 +279,8 @@ class FluidState:
             break
         c=np.array(c_new).transpose(); x=np.array(x_new)
         difference = PPoly(c=c, x=x, extrapolate=False)
+        if np.isnan(difference.solve(0)) or len(difference.solve(0))==0:
+            a=1
         pressure_val = keys[0].combine(difference.solve(0))
         temperature = t1_p(pressure_val)
         self.properties[self.fluid.P] = pressure_val
