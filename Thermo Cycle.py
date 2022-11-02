@@ -18,7 +18,7 @@ void_frac = 0.5
 omega = 7000 * (2 * np.pi / 60)
 t_init = 60*30 # seconds for spin-up
 cfe_flow = 0.1
-
+n = 19 # Number of CFEs
 
 # ********** Power/Force Calculations *******************
 rho_uh = (1 - void_frac) * rho_u
@@ -33,6 +33,26 @@ A_surf_CFE = 2 * np.pi * r2 * l
 
 P_cent = F_cent_ur/(A_surf_CFE)
 
+# *********** PM Pressure Drop ********************
+P_chamber = 10000                                                                   # Chamber pressure (kPa) (why is this different from p_core?)
+T_pm_2 = 1000                                                                       # Temperature at PM (again different from T_pm)
+R_H2 = 4.124                                                                        # Hydrogen gas constant
+rho_H2 = P_chamber / (R_H2 * T_pm_2)                                                # Density of H2
+mu_H2_PM = -(0.00000000000144)*T_pm_2 + (0.0000000169)*T_pm_2 + 0.00000464          # Viscosity at PM (Pa-s)
+r_outer_PM = 0.049                                                                  # Outer radius of PM
+r_inner_PM = 0.0455                                                                 # Inner radius of PM
+L_PM = r_outer_PM - r_inner_PM                                                      # Thickness of PM
+D_load_PM = 2 * P_chamber * L_PM                                                    # Distributed load across length of PM (N/m)
+m_flow_system = 2.3                                                                 # Mass flow of system
+cfe_flow2 = m_flow_system / n                                                       # Mass flow per CFE (not equal to cfe_flow above?)
+porosity_PM = 0.3                                                                   # PM volume fraction
+cfe_length = 0.84                                                                   # CFE length
+q_H2 = cfe_flow2 / (rho_H2 * porosity_PM * cfe_length * 2 * np.pi * r_outer_PM)     # Darcian Velocity (specific discharge)
+k1 = 3.05322463490072E-09                                                                                   # Permeability, k1
+k2 = 0.000421605940239228                                                                                   # Permeability, k2
+P_PM_inlet = np.sqrt(D_load_PM * ((mu_H2_PM/1000) * (q_H2/k1) + rho_H2 * (q_H2)**2 / k2) + P_chamber**2)    #PM inlet pressure
+dp_pm2 = P_chamber - P_PM_inlet                                                                             #Pressure drop across PM
+
 # *********** Thermo Fluid Parameters **************
 T_tank = 30             # starting temperature
 P_tank = 812930.475     # starting pressure (vapor pressure of H2 @ 30 K)
@@ -40,7 +60,8 @@ T_core = 3700           # final temperature inside CFE
 p_core = 5e6            # final pressure inside CFE
 T_pm = 500              # temperature at porous media
 dp_uran = -P_cent       # pressure change across uranium due to centripetal pressure
-dp_pm = -9e3            # pressure change across porous media
+# dp_pm = -9e3            # pressure change across porous media
+dp_pm = dp_pm2            # pressure change across porous media
 eta_turbopump = 1       # turbopump efficiency
 eta_cfeturb = 1         # cfe turbine efficiency
 
