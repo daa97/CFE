@@ -1,4 +1,3 @@
-from re import A
 import numpy as np
 import csv
 from scipy.interpolate import CubicSpline, PPoly
@@ -18,19 +17,21 @@ class Table:
     def __init__(self, property, P: np.array, T: np.array, data: np.array):
         self.P_axis = P                     # pressure values corresponding to each column
         self.T_axis = T                     # temperature values corresponding to each row
-        self.csp_axis = []                  # temperature values corresponding to each spline f(P)
-        self.cst_axis = []                  # pressure values corresponding to each spline f(T)
+        self.psplines = []                  # spline functions of pressure at tabulated temperatures
+        self.tsplines = []                  # spline functions of temp at tabulated pressures
+        self.psplines_Taxis = []            # temperature values corresponding to each spline f(P)
+        self.tsplines_Paxis = []            # pressure values corresponding to each spline f(T)
         self.data = data                    # fluid property values
         self.tol = 1e-5                     # tolerance for removing duplicate solutions
 
         self.P_range = (min(self.P_axis), max(self.P_axis))     # pressure range of the table
         self.T_range = (min(self.T_axis), max(self.T_axis))     # temperature range of the table
-        self.data_range = (np.min(self.data), np.max(self.data)) # range of property values in the table
+        numdata = self.data[~np.isnan(self.data)]               # filter out NaN values for max and min
+        self.data_range = (np.min(numdata), np.max(numdata))    # range of property values in the table
         self.property = property                                # metadata associated with the physical property
 
 
         # create spline fits as a function of pressure at specified temperatures
-        self.cs_p = [] 
         for i in range(len(self.T_axis)):
             row = self.data[i,:]                # index values at each temperature
             x = self.P_axis[~np.isnan(row)]     # filter out pressure values which are missing property data
@@ -38,11 +39,10 @@ class Table:
 
             if len(y) > 1:                      # check if at least two data values exist in row
                 # add spline function of pressure, and corresponding temperature value
-                self.cs_p.append(CubicSpline(x, y, extrapolate=extra))  
-                self.csp_axis.append(self.T_axis[i])
+                self.psplines.append(CubicSpline(x, y, extrapolate=extra))  
+                self.psplines_Taxis.append(self.T_axis[i])
             
         # create spline fits as a function of temperature at specified pressures    
-        self.cs_t = []                   
         for j in range(len(self.P_axis)):
             column = self.data[:,j]             # index values at each pressure
             x = self.T_axis[~np.isnan(column)]  # filter out temperature values which are missing property data
@@ -51,156 +51,140 @@ class Table:
             # check if at least two data values exist in column
             if len(y) > 1:
                 # add spline function of temperature, and corresponding pressure value
-                self.cs_t.append(CubicSpline(x, y, extrapolate=extra))
-                self.cst_axis.append(self.P_axis[j])
+                self.tsplines.append(CubicSpline(x, y, extrapolate=extra))
+                self.tsplines_Paxis.append(self.P_axis[j])
 
     
     def check_range(self, P1=None, T1=None, Y1=None):
         "check if input property values are within range of table"
-        # For each value given, checks if number is invalid (NaN) or outside of known range
+        self.check_single(P1, self.P_range, "Pressure")             # check pressure if provided
+        self.check_single(T1, self.T_range, "Temperature")          # check temperature if provided
+        self.check_single(Y1, self.data_range, self.property.name)  # check property value if provided
 
-        # check pressure if given:
-        if P1 is not None:
-            if P1<self.P_range[0] or P1>self.P_range[1] or np.isnan(P1):
-                raise ValueError(f"Pressure value of {P1} is not within tabulated range of {self.P_range}")
-
-        # check temperature if given:
-        if T1 is not None:
-            if T1<self.T_range[0] or T1>self.T_range[1] or np.isnan(T1):
-                raise ValueError(f"Temperature value of {T1} is not within tabulated range of {self.T_range}")
-
-        # check property value if given
-        if Y1 is not None:
-            if Y1<self.data_range[0] or Y1>self.data_range[1] or np.isnan(Y1):
-                raise ValueError(f"{self.property.name} value of {Y1} is not within tabulated range of {self.data_range}")
-
+    def check_single(self, val, rang, name):
+        "check if a provided value is finite and within provided range"
+        if val is not None:
+            if val<min(rang) or val>max(rang) or np.isnan(val):
+                 raise ValueError(f"{name} value of {val} is not within tabulated range of {rang}")
     
     def interp(self, P1, T1) -> float:
         "Obtain property value from pressure and temperature through interpolation"
-
         self.check_range(P1=P1, T1=T1)      # ensure provided values are in table range
-        FP = self.func_p(T1)                # 
-        FT = self.func_t(P1)
-        Ans = (FP(P1) + FT(T1)) / 2
-        if np.isnan(Ans):
-            print(f"WARNING: fluid property '{self.property.name}' could not be found at temperature {T1} & pressure {P1}")
+        FP = self.func_p(T1)                # create property function F(P) at given T
+        FT = self.func_t(P1)                # create property function F(T) at given P
+        Ans = (FP(P1) + FT(T1)) / 2         # average values to improve accuracy
+        if np.isnan(Ans):                   # print warning if value is NaN
+            print(f"WARNING: property '{self.property.name}' data not found at temperature {T1} & pressure {P1}")
         return Ans
     
     def func_t(self, P1) -> PPoly:
         "Property as a function of temperature at specified pressure P1"
         self.check_range(P1=P1)             # ensure provided values are in table range
-        at_p1 = []
-        tvals = []
-        for i in range(len(self.csp_axis)):
-            yval = self.cs_p[i](P1)
-            if np.isfinite(yval):
-                at_p1.append(yval)
-                tvals.append(self.csp_axis[i])
-
-        return CubicSpline(tvals, at_p1, extrapolate=extra)
-    
+        return self.func_1D(P1, self.psplines, self.psplines_Taxis)
     
     def func_p(self, T1) -> PPoly:
         "Property as a function of pressure at specified temperature T1"
         self.check_range(T1=T1)             # ensure provided values are in table range
-        at_t1 = []
-        pvals = []
-        for j in range(len(self.cst_axis)):
-            yval = self.cs_t[j](T1)
-            if np.isfinite(yval):
-                at_t1.append(yval)
-                pvals.append(self.cst_axis[j])
-
-
-        return CubicSpline(pvals, at_t1, extrapolate=extra)
+        return self.func_1D(T1, self.tsplines, self.tsplines_Paxis)
     
-    
+    def func_1D(self, Z1, zsplines, x_axis) -> PPoly:
+        '''Returns function y=F(x) at a specified z value.
+        zsplines is a list of functions y(z) at x-intervals specified by x_axis'''
+
+        y = np.array([func(Z1) for func in zsplines])      # get y(z) values for each x interval
+        x = np.array(x_axis)[~np.isnan(y)]                    # filter out x-values where y is NaN
+        y = y[~np.isnan(y)]                         # filter out NaN y-values
+        return CubicSpline(x, y, extrapolate=False) # return interpolated spline function
+
     def get_p(self, T1, Y1) -> float:
         '''get pressure value from given temperature and property value (not recommended for enthalpy or cp tables).'''
-        self.check_range(T1=T1, Y1=Y1)      # ensure provided values are in table range
-        func = self.func_p(T1)              
-        solns = self.combine(func.solve(Y1))
-        if len(solns)!=1:
-            raise ValueError(f"No Unique Solution Found. Solution list: {solns}")
-        return solns[0]
+        self.check_range(T1=T1, Y1=Y1)          # ensure provided values are in table range
+        func = self.func_p(T1)                  # define 1D property function at given temperature
+        return self.combine(func.solve(Y1))     # solve for pressure given property value
     
     def t_func_p(self,Y1) -> PPoly:
         '''Get temperature as a function of pressure for given property value'''
         self.check_range(Y1=Y1)             # ensure provided values are in table range
         
-        # Find temperature at tabulated pressures and given property value Y1
-        intercepts = dict()
-        for i in range(len(self.cs_t)):     # 
-            Ti = self.combine(self.cs_t[i].solve(Y1))
-       
+        # solve for temperature at each pressure
+        print(Y1); T_points = []; P_points = []
+        for i in range(len(self.tsplines)):
+            tpt = self.tsplines[i].solve(Y1)
+            print(tpt)
+            if len(tpt)>0:
+                T_points.append(self.combine(tpt))
+                P_points.append(self.tsplines_Paxis[i])
+        #T_points = [self.combine(F.solve(Y1)) for F in self.tsplines]
         # return function T(P) created from interpolation of these points
-        dbp(list(intercepts.keys()), list(intercepts.values()))
-        return CubicSpline(list(intercepts.keys()), list(intercepts.values()), extrapolate=extra)
-    
+        return CubicSpline(P_points, T_points, extrapolate=False)
     
     def get_t(self, P1, Y1) -> float:
         '''Get temperature from pressure and property value'''
-        self.check_range(P1=P1, Y1=Y1)
-        func = self.func_t(P1)
-        return self.combine(func.solve(Y1))
+        self.check_range(P1=P1, Y1=Y1)          # ensure provided values are in table range
+        func = self.func_t(P1)                  # define 1D property function at given pressure
+        return self.combine(func.solve(Y1))     # solve for temperature given property value
         
     def combine(self, vals: np.array) -> list:
         '''Remove duplicate and NaN solutions. 
         Should converge to a single solution or raise an error.'''
+        vals = vals[~np.isnan(vals)]                # filter out NaN values
         unique = []                                 # list of unique solutions
-
         equal = lambda a,b: abs(a-b) < self.tol     # checks if two values are nearly equal to within specified tolerance
-        for i in range(len(vals)):                  # loop through each value in list
-            for j in range(i,len(vals)):            # loop through values again to check pairs of values
-                
-                
-                if i!=j and equal(vals[i], vals[j]):
-                    break                   # don't include value i if equal to a later value
-                elif np.isnan(vals[i]):
-                    break                   # don't include value i if NaN
+        for i, vi in enumerate(vals):               # loop through each value in list
+            for j, vj in enumerate(vals[i:]):       # loop through values again to check pairs of values                
+                if j!=0 and equal(vi, vj):          
+                    break                           # don't include value i if equal to a later value
             else:
-                unique.append(vals[i])      # keep value for output if it is valid and unique
-
+                unique.append(vi)      # keep value for output if it is unique
         if len(unique)!=1:                  # check that exactly 1 solution exists
-            raise ValueError(f"No Unique Solution Found. Solution list: {unique}")
+            raise ValueError(f"No Unique Solution Found. Solutions list: {unique}")
         return unique[0]                    # return only solution
 
 class FluidProperty:
     '''Representation of a fluid property such as pressure or entropy'''
-    def __init__(self, tag:str, name:str, alt:list, rev:bool=True, file:str=None, units:str=None, axis=False):
-        self.name = name
-        self.axis = axis
-        self.tag = tag
-        self.units = units
-        if isinstance(alt, str):
-            alt = [alt]
-        else:
-            alt = list(alt)
-        self.altnames = alt
-        self.file = file
-        self.reversible = rev
-        self.known = (axis or (self.file is not None))
-        self.callnames = [self.tag.upper(), self.name.upper().replace(" ", "_")] + self.altnames
+    def __init__(self, tag:str, name:str, alt:list=[], rev:bool=True, file:str=None, units:str="", axis=False):
+        self.name = name                                # full name of property
+        self.isaxis = axis                              # specifies if property is pressure/temperature or another property
+        self.tag = tag                                  # short tag to specify name
+        self.units = units                              # units to display when showing the property
+        self.file = file                                # file name of csv which contains property table
+        self.reversible = rev                           # indicates whether the property can be used to determine state of the fluid
+        self.known = (axis or (self.file is not None))  # indicates whether any data exists for this property
+        # callnames lists all names which can be used to access the property
+        self.callnames = [self.reformat(self.tag), self.reformat(self.name)] + [self.reformat(s) for s in alt]
         
     def read_table(self, fname=None):
+        """reads property data table from file and assigns it to self.table"""
         if fname is not None:
-            self.file = fname
+            self.file = fname                       # update file name if new one is given
         if self.file is not None:
-            self.known = True
-            with open(self.file, mode='r', newline='') as f:
+            self.known = True                       # indicate that there is an associated dataset for the property
+            with open(self.file, mode='r', newline='') as f:    # read csv file, removing any thousands separators
                 reader = csv.reader(f)
                 data = np.array([[s.replace(',', '') for s in r] for r in reader])
             self.table = Table(self, P=data[0,1:].astype(float), T=data[1:,0].astype(float), data=data[1:,1:].astype(float))
 
     def knownas(self, string):
-        return (string.upper().replace(" ", "_") in self.callnames)
+        "Tell whether a specific name can be used to access the property"
+        return (self.reformat(string) in self.callnames) # return True if string is found in callnames
 
+    def reformat(self, string):
+        '''Formats string to avoid case sensitivity'''
+        return string.upper().strip().replace(" ", "_")
+
+
+    def __getattr__(self, __name: str):
+        '''allows direct access of table attributes from property'''
+        print(__name)
+        if self.known and not self.isaxis:
+            return self.table.__getattribute__(__name)
+        else:
+            raise AttributeError
+            
     def __str__(self):
+        """Controls printout behavior of property"""
         return f"[{self.tag}] {self.name} ({self.units})"
     
-    def printval(self, value):
-        return str(self) + ": " + str(value)
-
 class FluidState:
     '''Representation of one particular state of a fluid with a given pressure, temperature, etc.'''
     def __init__(self, fluid, props):
@@ -209,59 +193,45 @@ class FluidState:
         self.solve_properties(props) # solve for fluid properties
 
     def __getattr__(self, __name: str):
-        '''overrides default FluidState.attribute behavior for unrecognized attribute names. Allows for parsing of '''
+        '''overrides default FluidState.attribute behavior for unrecognized attribute names. Allows parsing of any fluid property names desired'''
         for p in self.fluid.properties:
             if p.knownas(__name) and p.known:
                 return self.properties[p]
     
     def solve_properties(self, props: dict):
         '''Solve for all properties of the fluid'''
-        pt_count = 0
         keys = list(props.keys())
-        if self.fluid.v in keys: # convert specific volume to density
-            props[self.fluid.rho] = 1 / props[self.fluid.volume]
-            keys.remove(self.fluid.volume)
-            keys.append(self.fluid.rho)
-
-        for pr, val in props.items():
-            if pr.known:
-                if pr is self.fluid.P:
-                    pt_count +=1
-                elif pr is self.fluid.T:
-                    pt_count +=1
-                elif not pr.reversible:
-                    raise ValueError(f"Property '{pr}' cannot be used to solve for other properties")
-            else:
-                raise ValueError(f"Property '{pr}' values do not exist for this fluid")
+        for prop in keys:
+            if not prop.known:
+                raise ValueError(f"Property '{prop}' values do not exist for this fluid")
+            elif (not prop.reversible) and (not prop.isaxis):
+                raise ValueError(f"Property '{prop}' cannot be used to solve for other properties")
+                
 
         # Solve for both pressure and temperature if needed
-        if pt_count==0:
-            self.double_solve(props[keys[0]], keys[0].table, props[keys[1]], keys[1].table)
+        if not any([prop.isaxis for prop in keys]):
+            self.double_solve(props)
+            print("SOLVED")
         
-        # Solve for only one of either pressure or temperature if needed
-        if pt_count == 1:
-            # Check if temperature was provided
-            if self.fluid.T in keys:
-                # solve for pressure
-                self.properties[self.fluid.T] = props[self.fluid.T]
-                other_prop = keys[keys is not self.fluid.T]
-                self.properties[self.fluid.P] = other_prop.table.get_p( T1=props[self.fluid.T], Y1=props[other_prop])
+        if self.fluid.T in keys:
+            self.properties[self.fluid.T] = props[self.fluid.T]
+        if self.fluid.P in keys:
+            self.properties[self.fluid.P] = props[self.fluid.P]
+        else:
+            # solve for pressure
+            other_prop = keys[keys is not self.fluid.T]
+            self.properties[self.fluid.P] = other_prop.table.get_p( T1=self.T, Y1=props[other_prop])
 
-            # check if pressure was provided 
-            elif self.fluid.P in keys:
-                # self for temperature
-                self.properties[self.fluid.P] = props[self.fluid.P]
-                other_prop = keys[keys is not self.fluid.P]
-                self.properties[self.fluid.T] = other_prop.table.get_t( P1=props[self.fluid.P], Y1=props[other_prop])
-            else:
-                # neither property can be found but one was flagged as being provided in previous section
-                raise NameError("Solve Error: Could not locate provided pressure/temperature")
+        if not self.fluid.T in keys:
+            # self for temperature
+            other_prop = keys[keys is not self.fluid.P]
+            self.properties[self.fluid.T] = other_prop.table.get_t( P1=self.P, Y1=props[other_prop])
         
         # set value for each property
         for pr in self.fluid.properties:
             if pr in keys:
                 self.properties[pr] = props[pr]
-            elif pr.known and (not pr.axis):
+            elif pr.known and (not pr.isaxis):
                 try:
                     self.properties[pr] = pr.table.interp(P1=self.P, T1=self.T)
                 except KeyError as err:
@@ -272,21 +242,20 @@ class FluidState:
                     self.properties[pr] = 0
                     #self.properties[pr] = np.nan
     
-    def double_solve(self, value1, table1, value2, table2) -> "float, float":
+    def double_solve(self, props) -> "float, float":
         '''solve for both pressure and temperature as a function of other variables
         Should mostly only be called internally by other fluid state methods'''
-
-        t1_p = table1.t_func_p(value1) # function T(P) given property 1
-        t2_p = table2.t_func_p(value2) # function T(P) given property 2
+        keys = list(props.keys())
+        vals = list(props.values())
+        print([k.name for k in keys], vals)
+        t1_p = keys[0].t_func_p(vals[0])        # function T(P) given property 1
+        t2_p = keys[1].t_func_p(vals[1])        # function T(P) given property 2
         
-        pmax = min(max(t1_p.x), max(t2_p.x)) # upper bound of smaller range
-        pmin = max(min(t1_p.x), min(t2_p.x)) # lower bound of smaller range
-        x_new = []
-        c_new = []
-        dbp("P RANGE:", pmin, pmax)
+        pmax = min(max(t1_p.x), max(t2_p.x))    # upper bound of smaller range
+        pmin = max(min(t1_p.x), min(t2_p.x))    # lower bound of smaller range
+        x_new = []; c_new = []                  
+        
         # iterate over pressure values for each
-        dbp("X1:", t1_p.x.shape)
-        dbp("C1:", t1_p.c.shape)
         for i in range(len(t1_p.x)):
             for j in range(len(t2_p.x)):
                 p1 = t1_p.x[i]
@@ -303,23 +272,16 @@ class FluidState:
                         c1 = t1_p.c[:,i]
                         c2 = t2_p.c[:,j]
                         x_new.append(p1)
-                        c_new.append(c1 - c2)
-                dbp("P1:", p1, "P2:", p2)
-                
+                        c_new.append(c1 - c2)                
             else:
                 continue
             break
         c=np.array(c_new).transpose(); x=np.array(x_new)
         difference = PPoly(c=c, x=x, extrapolate=False)
-        pressure_values = table1.combine(difference.solve(0))
-        if len(pressure_values)!=1:
-            print(pressure_values)
-            raise ValueError("No Unique Solution Found")
-        else:
-            temperature = t1_p(pressure_values[0])
-            self.properties[self.fluid.P] = pressure_values[0]
-            self.properties[self.fluid.T] = temperature
-            #return pressure_values[0], temperature
+        pressure_val = keys[0].combine(difference.solve(0))
+        temperature = t1_p(pressure_val)
+        self.properties[self.fluid.P] = pressure_val
+        self.properties[self.fluid.T] = temperature
                 
     # control printout behavior of fluid state
     def __str__(self):
@@ -332,20 +294,20 @@ class Fluid:
     '''Representation of a fluid medium. Contains data for the fluid across different states of varying pressure, temperature, etc.'''
     def __init__(self, name: str, prop_tables:'{str:str}'):
         self.name = name
-        self.properties = [FluidProperty(tag='p', name='Pressure', alt=('PRESS'), rev=False, axis=True),    # Pressure
-            FluidProperty(tag='t', name='Temperature', alt=('TEMP'), rev=False, axis=True),                 # Temperature
-            FluidProperty(tag='h', name='Enthalpy', alt=('ENTH'), rev=True),                                # Enthalpy
-            FluidProperty(tag='u', name='Internal Energy', alt=(), rev=True),                               # Internal Energy
-            FluidProperty(tag='v', name='Specific Volume', alt=('VOLUME', 'VOL'), rev=True),                # Specific volume
-            FluidProperty(tag='rho', name='Density', alt=('R'), rev=True),                                  # Density
-            FluidProperty(tag='s', name='Entropy', alt=('S', 'ENTROPY'), rev=True),                         # Entropy
-            FluidProperty(tag='cp', name='Specific Heat', alt=('C'), rev=False),                            # Specific heat
-            FluidProperty(tag='gamma', name='Specific Heat Ratio', alt=('Y'), rev=False),                   # gamma, sp. heat ratio
-            FluidProperty(tag='mu', name='Dynamic Viscosity', alt=('VISC', 'VISCOSITY'), rev=False),      # viscosity (dynamic)
-            FluidProperty(tag='a', name='Speed of Sound', alt=(), rev=False),                               # speed of sound
-            FluidProperty(tag='gibbs', name='Gibbs Free Energy', alt=('GFE'), rev=False),                   # gibbs free energy
-            FluidProperty(tag='k', name='Thermal Conductivity', alt=("CONDUCTIVITY"), rev=False),                         # thermal conductivity
-            FluidProperty(tag='m', name='Molecular Mass', alt=("MOLAR_MASS"), rev=False)]                   # molecular mass
+        self.properties = [FluidProperty(tag='p', name='Pressure', alt=['PRESS'], rev=False, axis=True),    # Pressure
+            FluidProperty(tag='t', name='Temperature', alt=['TEMP'], rev=False, axis=True),                 # Temperature
+            FluidProperty(tag='h', name='Enthalpy', alt=['ENTH'], rev=True),                                # Enthalpy
+            FluidProperty(tag='u', name='Internal Energy', rev=True),                                       # Internal Energy
+            FluidProperty(tag='v', name='Specific Volume', alt=['VOLUME', 'VOL'], rev=True),                # Specific volume
+            FluidProperty(tag='rho', name='Density', alt=['R'], rev=True),                                  # Density
+            FluidProperty(tag='s', name='Entropy', alt=['S', 'ENTROPY'], rev=True),                         # Entropy
+            FluidProperty(tag='cp', name='Specific Heat', alt=['C'], rev=False),                            # Specific heat
+            FluidProperty(tag='gamma', name='Specific Heat Ratio', alt=['Y'], rev=False),                   # gamma, sp. heat ratio
+            FluidProperty(tag='mu', name='Dynamic Viscosity', alt=['VISC', 'VISCOSITY'], rev=False),        # viscosity (dynamic)
+            FluidProperty(tag='a', name='Speed of Sound', rev=False),                                       # speed of sound
+            FluidProperty(tag='gibbs', name='Gibbs Free Energy', alt=['GFE'], rev=False),                   # gibbs free energy
+            FluidProperty(tag='k', name='Thermal Conductivity', alt=["CONDUCTIVITY"], rev=False),           # thermal conductivity
+            FluidProperty(tag='m', name='Molecular Mass', alt=["MOLAR_MASS"], rev=False)]                   # molecular mass
         for prop, fname in prop_tables.items():
             for p in self.properties:
                 if p.knownas(prop):
