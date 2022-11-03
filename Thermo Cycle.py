@@ -121,7 +121,7 @@ print(space.P)
 states = [start, pumped, regen, turbo, throt, mix, cfe, pm, core] # modified to not plot duplicates
 flow1 = [start, pumped, regen, bypass, throt, mix, hot, cfe, pm, core, space]
 flow2 = [regen, turbo, mix]
-n = 2
+n = 500
 f1 = []
 for i in range(len(flow1)-1):
     p1 = flow1[i]
@@ -148,10 +148,15 @@ for ax in axes:
     for i, point in enumerate(states):
         ax.plot(point.s/1e3, point.T, styles[i%5], label=i+1)
     ax.legend()
-    #plt.ylabel("Temperature (K)")
-    #plt.xlabel("Entropy (kJ/kg K)")
+    plt.ylabel("Temperature (K)")
+    plt.xlabel("Entropy (kJ/kg K)")
+fig.suptitle("Hydrogen Temperature-Entropy Diagram for CNTR")
+axes[1].set_xlim(54.45, 54.85)
+axes[1].set_ylim(494, 506.5)
 
-fig.show()
+
+# fig.show()
+plt.show(block=True)
 
 for point in states:
     print(point.T, "|", point.s)
