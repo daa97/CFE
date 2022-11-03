@@ -60,8 +60,8 @@ T_core = 3700           # final temperature inside CFE
 p_core = 5e6            # final pressure inside CFE
 T_pm = 500              # temperature at porous media
 dp_uran = -P_cent       # pressure change across uranium due to centripetal pressure
-# dp_pm = -9e3            # pressure change across porous media
-dp_pm = dp_pm2            # pressure change across porous media
+dp_pm = -8.97e3         # pressure change across porous media
+# dp_pm = dp_pm2*1e3    # pressure change across porous media
 eta_turbopump = 1       # turbopump efficiency
 eta_cfeturb = 1         # cfe turbine efficiency
 
