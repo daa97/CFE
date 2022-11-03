@@ -50,8 +50,8 @@ cfe_length = 0.84                                                               
 q_H2 = cfe_flow2 / (rho_H2 * porosity_PM * cfe_length * 2 * np.pi * r_outer_PM)     # Darcian Velocity (specific discharge)
 k1 = 3.05322463490072E-09                                                                                   # Permeability, k1
 k2 = 0.000421605940239228                                                                                   # Permeability, k2
-P_PM_inlet = np.sqrt(D_load_PM * ((mu_H2_PM/1000) * (q_H2/k1) + rho_H2 * (q_H2)**2 / k2) + P_chamber**2)    #PM inlet pressure
-dp_pm2 = P_chamber - P_PM_inlet                                                                             #Pressure drop across PM
+P_PM_inlet = np.sqrt(D_load_PM * ((mu_H2_PM/1000) * (q_H2/k1) + rho_H2 * (q_H2)**2 / k2) + P_chamber**2)    # PM inlet pressure
+dp_pm2 = P_chamber - P_PM_inlet                                                                             # Pressure drop across PM
 
 # *********** Thermo Fluid Parameters **************
 T_tank = 30             # starting temperature
@@ -66,7 +66,7 @@ eta_turbopump = 1       # turbopump efficiency
 eta_cfeturb = 1         # cfe turbine efficiency
 
 dh_cfeturb = - cfe_power / cfe_flow 
-dh_turbo = -1e5         # starting value for turbopump work, will be iteratively solved later
+dh_turbo = -331706.6         # starting value for turbopump work, will be iteratively solved later
 y_turb = 0.5              # fraction going into turbopump
 q_regen1 = 0            # turbopump bypass heating states 3->6
 q_regen2 = 0            # CFE entrance heating states 5->8
@@ -117,10 +117,11 @@ throt = H2(h=bypass.h, P=mix.P)                        # state 5
 space = H2(s=core.s, T=300)
 print(space.P)
 
-states = [start, pumped, regen, turbo, mix, bypass, throt, hot, cfe, pm, core]
+#states = [start, pumped, regen, turbo, mix, bypass, throt, hot, cfe, pm, core]
+states = [start, pumped, regen, turbo, throt, mix, cfe, pm, core] # modified to not plot duplicates
 flow1 = [start, pumped, regen, bypass, throt, mix, hot, cfe, pm, core, space]
 flow2 = [regen, turbo, mix]
-n = 5
+n = 2
 f1 = []
 for i in range(len(flow1)-1):
     p1 = flow1[i]
@@ -138,22 +139,23 @@ for i in range(len(flow1)-1):
 f1.append(flow1[-1])
 
 
-plt.plot([point.s/1e3 for point in f1], [point.T for point in f1], 'b')
-plt.plot([point.s/1e3 for point in flow2], [point.T for point in flow2], 'b')
+fig, axes = plt.subplots(2,1)
+for ax in axes:
+    ax.plot([point.s/1e3 for point in f1], [point.T for point in f1], 'k')
+    ax.plot([point.s/1e3 for point in flow2], [point.T for point in flow2], 'k')
+    ax.grid(True)
+    styles = '.^v+x'
+    for i, point in enumerate(states):
+        ax.plot(point.s/1e3, point.T, styles[i%5], label=i+1)
+    ax.legend()
+    #plt.ylabel("Temperature (K)")
+    #plt.xlabel("Entropy (kJ/kg K)")
 
-T=range(700, 1200)
-s = H2.s.table.func_t(P1=pumped.P)
-#plt.plot(s(T), T)
-styles = '.*^v+x'
-for i, point in enumerate(states):
-    plt.plot(point.s/1e3, point.T, styles[i%6], label=i+1)
-
+fig.show()
 
 for point in states:
     print(point.T, "|", point.s)
-plt.legend()
-plt.ylabel("Temperature (K)")
-plt.xlabel("Entropy (kJ/kg K)")
-plt.show()
+
+
 
 
