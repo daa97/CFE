@@ -1,4 +1,3 @@
-from cProfile import label
 from fluids import *
 
 import matplotlib.pyplot as plt
@@ -67,7 +66,7 @@ eta_cfeturb = 1         # cfe turbine efficiency
 
 dh_cfeturb = - cfe_power / cfe_flow 
 dh_turbo = -331706.6         # starting value for turbopump work, will be iteratively solved later
-y_turb = 0.5              # fraction going into turbopump
+y_turb = 0.8              # fraction going into turbopump
 q_regen1 = 0            # turbopump bypass heating states 3->6
 q_regen2 = 0            # CFE entrance heating states 5->8
 y_throt = 1-y_turb      # fraction which bypasses via throttle
@@ -97,7 +96,7 @@ while True:
     bypass = H2(h=throt.h, P=regen.P)                   # state 6
     pumped = H2(P=regen.P, s=start.s)                   # state 2
 
-    dh_pump_goal = - dh_turbo / y_turb / eta_turbopump  # expected pump work based upon turbine
+    dh_pump_goal = - dh_turbo * y_turb * eta_turbopump  # expected pump work based upon turbine
     dh_pump = pumped.h - start.h                        # empirical pump work
     q_nozzle = regen.h - pumped.h                       # required regenerative cooling
     err = dh_pump - dh_pump_goal                        # difference of expcted and actual pump work found
@@ -121,7 +120,7 @@ print(space.P)
 states = [start, pumped, regen, turbo, throt, mix, cfe, pm, core] # modified to not plot duplicates
 flow1 = [start, pumped, regen, bypass, throt, mix, hot, cfe, pm, core, space]
 flow2 = [regen, turbo, mix]
-n = 500
+n = 1
 f1 = []
 for i in range(len(flow1)-1):
     p1 = flow1[i]
