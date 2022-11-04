@@ -66,7 +66,7 @@ eta_cfeturb = 1         # cfe turbine efficiency
 
 dh_cfeturb = - cfe_power / cfe_flow 
 dh_turbo = -331706.6         # starting value for turbopump work, will be iteratively solved later
-y_turb = 0.8              # fraction going into turbopump
+y_turb = 0.6              # fraction going into turbopump
 q_regen1 = 0            # turbopump bypass heating states 3->6
 q_regen2 = 0            # CFE entrance heating states 5->8
 y_throt = 1-y_turb      # fraction which bypasses via throttle
@@ -120,7 +120,7 @@ print(space.P)
 states = [start, pumped, regen, turbo, throt, mix, cfe, pm, core] # modified to not plot duplicates
 flow1 = [start, pumped, regen, bypass, throt, mix, hot, cfe, pm, core, space]
 flow2 = [regen, turbo, mix]
-n = 1
+n = 500
 f1 = []
 for i in range(len(flow1)-1):
     p1 = flow1[i]
@@ -152,7 +152,7 @@ for ax in axes:
 fig.suptitle("Hydrogen Temperature-Entropy Diagram for CNTR")
 axes[1].set_xlim(54.45, 54.85)
 axes[1].set_ylim(494, 506.5)
-
+axes[0].set_ylabel("Temperature (K)")
 
 # fig.show()
 plt.show(block=True)
