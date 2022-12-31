@@ -369,8 +369,10 @@ class Process:
         pass
 
 dir = "H2 Property Tables\\Updated" # Directory of csv property files
-prop_files = dict()
+hydrogen_files = dict()
 for file in os.listdir(dir):
     tag = file.split(".")[0]
-    prop_files[tag] = os.path.join(dir, file)
+    hydrogen_files[tag] = os.path.join(dir, file)
+
+H2 = Fluid("Hydrogen", hydrogen_files)
 
