@@ -302,12 +302,13 @@ class Fluid:
             FluidProperty(tag='h', name='Enthalpy', alt=['ENTH'], rev=True),                                # Enthalpy
             FluidProperty(tag='u', name='Internal Energy', rev=True),                                       # Internal Energy
             FluidProperty(tag='v', name='Specific Volume', alt=['VOLUME', 'VOL'], rev=True),                # Specific volume
-            FluidProperty(tag='rho', name='Density', alt=['R'], rev=True),                                  # Density
+            FluidProperty(tag='rho', name='Density', alt=['D'], rev=True),                                  # Density
             FluidProperty(tag='s', name='Entropy', alt=['S', 'ENTROPY'], rev=True),                         # Entropy
             FluidProperty(tag='cp', name='Specific Heat', alt=['C'], rev=False),                            # Specific heat
             FluidProperty(tag='gamma', name='Specific Heat Ratio', alt=['Y'], rev=False),                   # gamma, sp. heat ratio
             FluidProperty(tag='mu', name='Dynamic Viscosity', alt=['VISC', 'VISCOSITY'], rev=False),        # viscosity (dynamic)
-            FluidProperty(tag='a', name='Speed of Sound', rev=False),                                       # speed of sound
+            FluidProperty(tag='a', name='Speed of Sound',                                                   # speed of sound
+                          alt=["SON_VEL", "SON_VELOCITY", "SONIC_VELOCITY"], rev=False),                                     
             FluidProperty(tag='gibbs', name='Gibbs Free Energy', alt=['GFE'], rev=False),                   # gibbs free energy
             FluidProperty(tag='k', name='Thermal Conductivity', alt=["CONDUCTIVITY"], rev=False),           # thermal conductivity
             FluidProperty(tag='m', name='Molecular Mass', alt=["MOLAR_MASS"], rev=False)]                   # molecular mass
