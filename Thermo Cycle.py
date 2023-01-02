@@ -1,4 +1,5 @@
 from fluids import *
+import sys
 
 import matplotlib.pyplot as plt
 def moment(mass, R1, R2):
@@ -7,7 +8,9 @@ def moment(mass, R1, R2):
 def mass(R1, R2, length, density):
     return np.abs(np.pi * (R2**2 - R1**2) * length) * density
 
-
+def status(msg):
+    sys.stdout.write("\r"+msg)
+    sys.stdout.flush()
 # ***** Dimensions and Power Calc Parameters ************
 l = 0.84
 r1 = 0.03
@@ -65,13 +68,12 @@ eta_turbopump = 1       # turbopump efficiency
 eta_cfeturb = 1         # cfe turbine efficiency
 
 dh_cfeturb = - cfe_power / cfe_flow 
-dh_turbo = -331706.6         # starting value for turbopump work, will be iteratively solved later
-y_turb = 0.6              # fraction going into turbopump
+dh_turbo = -4e5         # starting value for turbopump work, will be iteratively solved later
+y_turb = 0.6            # fraction going into turbopump
 q_regen1 = 0            # turbopump bypass heating states 3->6
 q_regen2 = 0            # CFE entrance heating states 5->8
 y_throt = 1-y_turb      # fraction which bypasses via throttle
 
-H2 = Fluid("Hydrogen", prop_files)
 start = H2(P=P_tank, T=T_tank)                          # state 1
 
 core = H2(T=T_core, P=p_core)                           # state 11
@@ -82,12 +84,12 @@ hot = H2(h=cfe.h-dh_cfeturb*eta_cfeturb, P=hot_isent.P) # state 8
 mix = H2(h=hot.h-q_regen2, P=hot.P)                     # state 5
 
 
-# TODO: **IMPORTANT** Account for TP bypass split and remixing
 # TODO: Update starting temp/pressure to vapor pressure
 # TODO: Update PM dP and uranium dP to reflect accurate values
 # TODO: Account for inefficient TP (both halves separately?) and check CFE efficiency calcs
 # TODO: Maybe add parametric sweeps for TP bypass %, as well as 2nd and 3rd regen stages
 
+learn_rate = 3.2
 
 while True:
     turbo = H2(h=mix.h + y_throt*dh_turbo, P=mix.P)     # state 4
@@ -100,44 +102,37 @@ while True:
     dh_pump = pumped.h - start.h                        # empirical pump work
     q_nozzle = regen.h - pumped.h                       # required regenerative cooling
     err = dh_pump - dh_pump_goal                        # difference of expcted and actual pump work found
-    print("-"*40)
-    print("Converging ---- enthalpy error:", err)
-    print("Turbopump enthalpy change:", dh_pump)
-    print("Regen nozzle cooling:", q_nozzle)
-    print("Max Pressure:", pumped.P)
+    dh_turbo -= err * y_turb * learn_rate
+    
+    status(f"Converging ---- h_err: {err:.2f} | dh_pump: {dh_pump:.2f} | q_nozzle: {q_nozzle:.2f}")
     if abs(err) < 1:
-        print("Converged!")
+        status("\n")
+        print("-"*20+"Converged!"+"-"*20)
         break
-    dh_turbo -= err * y_turb
+
 
 bypass = H2(h=regen.h+q_regen1, P=regen.P)              # state 6
 throt = H2(h=bypass.h, P=mix.P)                        # state 5
 
 
 space = H2(s=core.s, T=300)
-print(space.P)
 
-#states = [start, pumped, regen, turbo, mix, bypass, throt, hot, cfe, pm, core]
 states = [start, pumped, regen, turbo, throt, mix, cfe, pm, core] # modified to not plot duplicates
 flow1 = [start, pumped, regen, bypass, throt, mix, hot, cfe, pm, core, space]
+hold =      ["HS",   "PS",  "PS",   "HS",  "PS","PS","HS", "HS","PH", "HS"]
 flow2 = [regen, turbo, mix]
-n = 500
 f1 = []
 for i in range(len(flow1)-1):
     p1 = flow1[i]
-    f1.append(p1)
     p2 = flow1[i+1]
-    for j in range(1,n):
-        if p1.s == p2.s:
-            pass
-            #f1.append(H2(s=p1.s, h=(p2.h-p1.h)*j/n + p1.h))
-        elif p1.h == p2.h:
-            pass
-            #f1.append(H2(h=p1.h, s=(p2.s-p1.s)*j/n + p1.s))
-        else:
-            f1.append(H2(h=(p2.h-p1.h)*j/n + p1.h, P=(p2.P-p1.P)*j/n + p1.P))
-f1.append(flow1[-1])
-
+    dx = p1.s - p2.s
+    dy = p1.T - p2.T
+    dist = np.sqrt(abs(dx/70)**2 + abs(dy/4)**2)
+    n = int(np.sqrt(dist)*10+4)
+    status(f"Generating process {i:2}/{len(flow1)-1} [{n:3} pts]")
+    f1 = f1 + H2.process(p1, p2, hold[i], n)
+status("\n")
+print("Plotting figures...")
 
 fig, axes = plt.subplots(2,1)
 for ax in axes:
@@ -150,6 +145,7 @@ for ax in axes:
     ax.legend()
     plt.ylabel("Temperature (K)")
     plt.xlabel("Entropy (kJ/kg K)")
+
 fig.suptitle("Hydrogen Temperature-Entropy Diagram for CNTR")
 axes[1].set_xlim(54.45, 54.85)
 axes[1].set_ylim(494, 506.5)

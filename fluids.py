@@ -106,12 +106,10 @@ class Table:
         '''Get temperature as a function of pressure for given property value'''
         self.check_range(Y1=Y1)             # ensure provided values are in table range
         
-        # solve for temperature at each pressure
-        print(Y1); 
+        # solve for temperature at each pressure 
         T_points = []; P_points = []
         for i in range(len(self.tsplines)):
             tpt = self.tsplines[i].solve(Y1)
-            #print(tpt)
             if len(tpt)>0:
                 T_points.append(self.combine(tpt))
                 P_points.append(self.tsplines_Paxis[i])
@@ -176,11 +174,10 @@ class FluidProperty:
 
     def __getattr__(self, __name: str):
         '''allows direct access of table attributes from property'''
-        print(__name)
         if self.known and not self.isaxis:
             return self.table.__getattribute__(__name)
         else:
-            raise AttributeError
+            raise AttributeError(f"{self}.{__name} not found")
             
     def __str__(self):
         """Controls printout behavior of property"""
@@ -212,7 +209,6 @@ class FluidState:
         # Solve for both pressure and temperature if needed
         if not any([prop.isaxis for prop in keys]):
             self.double_solve(props)
-            print("SOLVED")
         
         if self.fluid.T in keys:
             self.properties[self.fluid.T] = props[self.fluid.T]
@@ -239,16 +235,13 @@ class FluidState:
                     # TODO: FIXME
                     
                     print("FAILED:", err, pr.name, "P,T:", self.P, self.T)
-                    #print(pr.table.cs_t)
                     self.properties[pr] = 0
-                    #self.properties[pr] = np.nan
     
     def double_solve(self, props) -> "float, float":
         '''solve for both pressure and temperature as a function of other variables
         Should mostly only be called internally by other fluid state methods'''
         keys = list(props.keys())
         vals = list(props.values())
-        #print([k.name for k in keys], vals)
         t1_p = keys[0].t_func_p(vals[0])        # function T(P) given property 1
         t2_p = keys[1].t_func_p(vals[1])        # function T(P) given property 2
         
@@ -315,9 +308,21 @@ class Fluid:
         for prop, fname in prop_tables.items():
             for p in self.properties:
                 if p.knownas(prop):
-                    #print(p)
                     p.read_table(fname)
-        
+    def process(self, state1, state2, lin, n):
+        path = [state1]
+        start = {lin[0]:state1.__getattr__(lin[0]), 
+                    lin[1]:state1.__getattr__(lin[1])}
+        final = {lin[0]:state2.__getattr__(lin[0]), 
+                    lin[1]:state2.__getattr__(lin[1])}
+        itp = lambda a,b,x: a*(1-x) + b*x
+        for j in range(1,n):
+            mid = dict()
+            for k,v in start.items():
+                mid[k] = itp(v,final[k],j/n)
+            path.append(self.state(**mid))
+        path.append(state2)
+        return path
     
     # Control printout behavior
     def __str__(self):
@@ -358,16 +363,6 @@ class Fluid:
             raise ValueError("Input properties not recognized")
         return FluidState(self, input_props)
 
-class Process:
-    def __init__(self, state1, **kwargs):
-        self.isentropic = None
-        self.adiabatic = None
-        self.isenthalpic = None
-        self.q = 0
-        self.w = 0
-        
-        # TODO: Define process which goes from one state to another
-        pass
 
 dir = "H2 Property Tables\\Updated" # Directory of csv property files
 hydrogen_files = dict()
