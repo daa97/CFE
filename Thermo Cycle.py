@@ -114,9 +114,9 @@ while True:
 bypass = H2(h=regen.h+q_regen1, P=regen.P)              # state 6
 throt = H2(h=bypass.h, P=mix.P)                        # state 5
 
+res = 0
 
 space = H2(s=core.s, T=300)
-
 states = [start, pumped, regen, turbo, throt, mix, cfe, pm, core] # modified to not plot duplicates
 flow1 = [start, pumped, regen, bypass, throt, mix, hot, cfe, pm, core, space]
 hold =      ["HS",   "PS",  "PS",   "HS",  "PS","PS","HS", "HS","PH", "HS"]
@@ -128,30 +128,33 @@ for i in range(len(flow1)-1):
     dx = p1.s - p2.s
     dy = p1.T - p2.T
     dist = np.sqrt(abs(dx/70)**2 + abs(dy/4)**2)
-    n = int(np.sqrt(dist)*10+4)
+    n = int(np.sqrt(dist)*0+2)
     status(f"Generating process {i:2}/{len(flow1)-1} [{n:3} pts]")
     f1 = f1 + H2.process(p1, p2, hold[i], n)
 status("\n")
 print("Plotting figures...")
 
-fig, axes = plt.subplots(2,1)
-for ax in axes:
-    ax.plot([point.s/1e3 for point in f1], [point.T for point in f1], 'k')
-    ax.plot([point.s/1e3 for point in flow2], [point.T for point in flow2], 'k')
-    ax.grid(True)
-    styles = '.^v+x'
-    for i, point in enumerate(states):
-        ax.plot(point.s/1e3, point.T, styles[i%5], label=i+1)
-    ax.legend()
-    plt.ylabel("Temperature (K)")
-    plt.xlabel("Entropy (kJ/kg K)")
+fig, axes = plt.subplots(2,2)
+for row in axes:
+    for ax in row:
+        ax.plot([point.s/1e3 for point in f1], [point.T for point in f1], 'k')
+        ax.plot([point.s/1e3 for point in flow2], [point.T for point in flow2], 'k')
+        ax.grid(True, color='#D1D1D1')
+        styles = '.^v+x'
+        for i, point in enumerate(states):
+            ax.plot(point.s/1e3, point.T, styles[i%5], label=i+1)
+        ax.legend()
+        plt.ylabel("Temperature (K)")
+        plt.xlabel("Entropy (kJ/kg K)")
 
 fig.suptitle("Hydrogen Temperature-Entropy Diagram for CNTR")
-axes[1].set_xlim(54.45, 54.85)
-axes[1].set_ylim(494, 506.5)
-axes[0].set_ylabel("Temperature (K)")
+axes[0][1].set_xlim(11, 13)
+axes[0][1].set_ylim(20, 80)
+axes[1][0].set_xlim(42.7, 43.9)
+axes[1][0].set_ylim(485, 520)
+axes[1][1].set_xlim(43.24, 43.28)
+axes[1][1].set_ylim(499.7, 500.3)
 
-# fig.show()
 plt.show(block=True)
 
 for point in states:
