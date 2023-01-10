@@ -1,3 +1,5 @@
+# NOTE: must be run with 32-bit python to work with the free software refpropMINI
+
 import os, numpy as np
 from ctREFPROP.ctREFPROP import REFPROPFunctionLibrary as RPFL
 # ********************************************************************
@@ -15,12 +17,9 @@ def props(P,T):      # find properties
 
 n=40
 trunc = lambda x: round(x,min(-int(np.floor(np.log10(abs(x))))+4,0))
-P = np.array([trunc(10**(x/n)) for x in range(2*n,7*n+1)]).transpose()
+P = np.array([trunc(10**(x/n)) for x in range(2*n,int(7.5*n)+1)]).transpose()
 print(max(P)/1e6)
 T = np.arange(25, 1505, 5, dtype=int)
-
-
-
 
 def tabulate(dictionary, P, T):
     # set up first row and first column containing pressure and temperature values
