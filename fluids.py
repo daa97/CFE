@@ -298,7 +298,7 @@ class Fluid:
             FluidProperty(tag='rho', name='Density', alt=['D'], rev=True),                                  # Density
             FluidProperty(tag='s', name='Entropy', alt=['S', 'ENTROPY'], rev=True),                         # Entropy
             FluidProperty(tag='cp', name='Specific Heat', alt=['C'], rev=False),                            # Specific heat
-            FluidProperty(tag='gamma', name='Specific Heat Ratio', alt=['Y'], rev=False),                   # gamma, sp. heat ratio
+            FluidProperty(tag='gamma', name='Specific Heat Ratio', alt=['Y', "GAMMAS"], rev=False),                   # gamma, sp. heat ratio
             FluidProperty(tag='mu', name='Dynamic Viscosity', alt=['VISC', 'VISCOSITY'], rev=False),        # viscosity (dynamic)
             FluidProperty(tag='a', name='Speed of Sound',                                                   # speed of sound
                           alt=["SON_VEL", "SON_VELOCITY", "SONIC_VELOCITY"], rev=False),                                     
