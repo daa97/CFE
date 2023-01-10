@@ -1,2 +1,2 @@
-# CFE-Thermal
-This project is meant to encapsulate the Drexel University study of the thermodynamic cycle of the CFE and broader CNTR. 
+# CFE Modeling
+This repository contains various python tools used in the modeling and design process of a Centrifugal Fuel Element for the proposed Centrifugal Nuclear Thermal Rocket. These tools were developed by our senior design team at Drexel University.
