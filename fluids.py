@@ -290,32 +290,34 @@ class Fluid:
     '''Representation of a fluid medium. Contains data for the fluid across different states of varying pressure, temperature, etc.'''
     def __init__(self, name: str, prop_tables:'{str:str}'):
         self.name = name
-        self.properties = [FluidProperty(tag='p', name='Pressure', alt=['PRESS'], rev=False, axis=True),    # Pressure
-            FluidProperty(tag='t', name='Temperature', alt=['TEMP'], rev=False, axis=True),                 # Temperature
-            FluidProperty(tag='h', name='Enthalpy', alt=['ENTH'], rev=True),                                # Enthalpy
-            FluidProperty(tag='u', name='Internal Energy', rev=True),                                       # Internal Energy
-            FluidProperty(tag='v', name='Specific Volume', alt=['VOLUME', 'VOL'], rev=True),                # Specific volume
-            FluidProperty(tag='rho', name='Density', alt=['D'], rev=True),                                  # Density
-            FluidProperty(tag='s', name='Entropy', alt=['S', 'ENTROPY'], rev=True),                         # Entropy
-            FluidProperty(tag='cp', name='Specific Heat', alt=['C'], rev=False),                            # Specific heat
-            FluidProperty(tag='gamma', name='Specific Heat Ratio', alt=['Y', "GAMMAS"], rev=False),                   # gamma, sp. heat ratio
-            FluidProperty(tag='mu', name='Dynamic Viscosity', alt=['VISC', 'VISCOSITY'], rev=False),        # viscosity (dynamic)
-            FluidProperty(tag='a', name='Speed of Sound',                                                   # speed of sound
-                          alt=["SON_VEL", "SON_VELOCITY", "SONIC_VELOCITY"], rev=False),                                     
-            FluidProperty(tag='gibbs', name='Gibbs Free Energy', alt=['GFE'], rev=False),                   # gibbs free energy
-            FluidProperty(tag='k', name='Thermal Conductivity', alt=["CONDUCTIVITY"], rev=False),           # thermal conductivity
-            FluidProperty(tag='m', name='Molecular Mass', alt=["MOLAR_MASS"], rev=False)]                   # molecular mass
+        self.properties = [FluidProperty(tag='p', name='Pressure', alt=['PRESS'], rev=False, axis=True, units="Pa"),# Pressure
+            FluidProperty(tag='t', name='Temperature', alt=['TEMP'], rev=False, axis=True, units="K"),              # Temperature
+            FluidProperty(tag='h', name='Enthalpy', alt=['ENTH'], rev=True, units="J/kg"),                          # Enthalpy
+            FluidProperty(tag='u', name='Internal Energy', rev=True, units="J/kg"),                                 # Internal Energy
+            FluidProperty(tag='v', name='Specific Volume', alt=['VOLUME', 'VOL'], rev=True, units="m^3/kg"),        # Specific volume
+            FluidProperty(tag='rho', name='Density', alt=['D'], rev=True, units="kg/m^3"),                          # Density
+            FluidProperty(tag='s', name='Entropy', alt=['S', 'ENTROPY'], rev=True, units="J/kg K"),                 # Entropy
+            FluidProperty(tag='cp', name='Specific Heat', alt=['C'], rev=False, units="J/kg K"),                    # Specific heat
+            FluidProperty(tag='gamma', name='Specific Heat Ratio', alt=['Y', "GAMMAS"], rev=False),                 # gamma, sp. heat ratio
+            FluidProperty(tag='mu', name='Dynamic Viscosity', alt=['VISC', 'VISCOSITY'], rev=False, units="Pa*s"),  # viscosity (dynamic)
+            FluidProperty(tag='a', name='Speed of Sound',
+                          alt=["SON_VEL", "SON_VELOCITY", "SONIC_VELOCITY"], rev=False, units="m/s"),               # speed of sound                     
+            FluidProperty(tag='gibbs', name='Gibbs Free Energy', alt=['GFE'], rev=False, units="J/kg"),             # gibbs free energy
+            FluidProperty(tag='k', name='Thermal Conductivity', alt=["CONDUCTIVITY"], rev=False, units="W/m K"),    # thermal conductivity
+            FluidProperty(tag='m', name='Molecular Mass', alt=["MOLAR_MASS"], rev=False, units="kg/mol")]           # molecular mass
         for prop, fname in prop_tables.items():
             for p in self.properties:
                 if p.knownas(prop):
                     p.read_table(fname)
-    def process(self, state1, state2, lin, n):
+    def process(self, state1, state2, linprops, n):
+        '''Generates a list of `n` intermediate states given a start and ending state and the 
+        names of two properties which should vary smoothly or stay constant. '''
         path = [state1]
-        start = {lin[0]:state1.__getattr__(lin[0]), 
-                    lin[1]:state1.__getattr__(lin[1])}
-        final = {lin[0]:state2.__getattr__(lin[0]), 
-                    lin[1]:state2.__getattr__(lin[1])}
-        itp = lambda a,b,x: a*(1-x) + b*x
+        start = {linprops[0]:state1.__getattr__(linprops[0]), 
+                 linprops[1]:state1.__getattr__(linprops[1])}
+        final = {linprops[0]:state2.__getattr__(linprops[0]), 
+                 linprops[1]:state2.__getattr__(linprops[1])}
+        itp = lambda a,b,x: a*(1-x) + b*x       # function to interpolate properties
         for j in range(1,n):
             mid = dict()
             for k,v in start.items():
@@ -324,19 +326,18 @@ class Fluid:
         path.append(state2)
         return path
     
-    # Control printout behavior
     def __str__(self):
         return f"Fluid object '{self.name}'"
     
     def __call__(self, **kwargs: float) -> FluidState:
         return self.state(**kwargs)
 
-
     def __getattr__(self, __name: str):
         for p in self.properties:
             if p.knownas(__name):
                 return p
-
+        else:
+            raise AttributeError(f"'Fluid' object has no attribute '{__name}'")
     
     def state(self, **kwargs: float) -> FluidState:
         '''Returns a fluid state given two fluid properties. Property values can then be indexed based upon the given state.
