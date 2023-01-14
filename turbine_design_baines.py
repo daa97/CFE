@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import scipy.interpolate as inter
 import csv
@@ -27,6 +28,7 @@ class CFE:
         """ Entry channel fluid properties """
         self.T_in = static_cfe_inputs["temp"] #Temperature [K]
         self.P_in = static_cfe_inputs["press"]*dynamic_turb_inputs["PR_ts"] * 1e6
+        print("CFE Inlet Pressure:",self.P_in/1e6,"[MPa]")
         self.P_out = static_cfe_inputs["press"] * 1e6
         self.cfe_state = H2(P=self.P_in,T = self.T_in)
         self.gamma = self.cfe_state.gamma
@@ -47,6 +49,7 @@ class CFE:
         self.mass_flow = static_cfe_inputs["mass_flow"] #Mass Flow Rate [kg/s]
         self.omega = static_cfe_inputs["rpm"]*np.pi/30 #Angular Velocity [s^-1]
         self.work_rate = self.calc_work_rate()  #Power requirement for turbine [W]
+        print("Work Rate:",self.work_rate,"[W]")
         st_turb_inputs = self.calc_static_turb_inputs()
         # print(55 *static_cfe_inputs["rpm"]/7000) # checking the bearing resistance relative to rpm
         self.static_turb_inputs = {
@@ -127,7 +130,8 @@ class turbine:
         self.PR_ts = dynamic_turb_inputs["PR_ts"]
 
         self.deltah_0 = self.CFE.work_rate/self.CFE.mass_flow
-        self.state_01 = H2(t=static_turb_inputs["T_01"], p = self.CFE.P_in)
+        self.T_01 = static_turb_inputs["T_01"]
+        self.state_01 = H2(t=self.T_01, p = self.CFE.P_in)
         self.h_05 = self.state_01.h - self.deltah_0
         self.state_05 = H2(h = self.h_05, P=self.CFE.P_out)
         self.epsilon_b = 0.4e-3
@@ -193,14 +197,13 @@ class turbine:
         self.beta_5 = self.beta_5_rad * 180 / np.pi
         self.a_5 = self.state_5.a
 
-        
+        self.state_5ss = H2(s = self.state_01.s,p = self.state_5.p)
+
 
         self.z_r = 1.5 * (self.b_5)
         self.n_r = np.round(np.pi/30*(110-self.alpha_4)*np.tan(self.alpha_4*np.pi/180)) #Glassman 1972
         self.q_5 = 2 * np.pi * self.r_5 / self.n_r
         self.o_5 = self.q_5 * self.C_m5 / self.W_5
-        one_over_PR = (1 - (self.C_0**2 / (2*self.state_01.cp*self.state_01.t)))**(self.state_01.gamma/(self.state_01.gamma-1))
-        self.PR = 1/one_over_PR
         self.r_3 = self.r_4 + 2 * self.b_4 * np.cos(self.alpha_4*np.pi/180)
         self.t_lead = 0.04 * self.r_4
         self.t_trail = 0.02 * self.r_4
@@ -361,7 +364,7 @@ Stage loading: {self.load_coef}\n \
 Flow coefficient: {self.flow_coef}\n \
 Isentropic enthalpy drop: {self.h_0ss} [kJ kg^-1]\n \
 Total-total enthalpy drop: {self.deltah_0} [kJ kg^-1]\n \
-Total-to-static pressure ratio: {self.PR}\n \
+Total-to-static pressure ratio: {self.PR_ts}\n \
 Specific speed: {self.N_s}\n \
 Turbine velocity ratio: {self.v_s}\n \
 Spouting Velocity: {self.C_0} [m s^-1]\n \
@@ -403,22 +406,55 @@ Rotor inlet relative flow angle: {self.beta_4} [degrees]\n\n'
         print(self.state_4)
         print(self.state_5)
 
+    def velocity_triangles(self):
+        fig, tri = plt.subplots(2)
+        tri[0].set_title("Rotor Inlet Velocity Triangles")
+        tri[0].arrow(0,0,self.C_theta4,self.C_m4,length_includes_head=True,color="r",width = 0.01,head_width=.75*self.C_theta4/35.2)
+        tri[0].arrow(0,self.C_m4,self.C_theta4,0,length_includes_head=True,ls="--",color="r",width = 0.01,head_width=.75*self.C_theta4/35.2)
+        tri[0].arrow(0,0,0,self.C_m4,length_includes_head=True,ls="--",color="r",width = 0.01,head_width=.75*self.C_theta4/35.2)
+
+        tri[0].arrow(0,0,self.W_theta4,self.W_m4,length_includes_head=True,color="b",width = 0.01,head_width=.75*self.C_theta4/35.2)
+        tri[0].arrow(0,self.W_m4,self.W_theta4,0,length_includes_head=True,ls="--",color="b",width = 0.01,head_width=.75*self.C_theta4/35.2)
+        tri[0].arrow(0,0,0,self.W_m4,length_includes_head=True,ls="--",color="b",width = 0.01,head_width=.75*self.C_theta4/35.2)
+        c_patch = mpl.lines.Line2D([], [],color='red', label='Absolute Velocity')
+        w_patch = mpl.lines.Line2D([], [],color='blue', label='Relative Velocity')
+        tri[0].legend(handles=[c_patch, w_patch])
+        tri[0].invert_yaxis()
+        
+        tri[1].set_title("Rotor Outlet Velocity Triangles")
+        tri[1].arrow(0,0,0,self.C_m5,length_includes_head=True,color="r",width = 0.01,head_width=0.4)
+        tri[1].arrow(0,self.C_m5,0,0,length_includes_head=True,ls="--",color="r",width = 0.01,head_width=0.4)
+        tri[1].arrow(0,0,0,self.C_m5,length_includes_head=True,ls="--",color="r",width = 0.01,head_width=0.4)
+
+        tri[1].arrow(0,0,self.W_theta5,self.W_m5,length_includes_head=True,color="b",width = 0.01,head_width=0.4)
+        tri[1].arrow(0,self.W_m5,self.W_theta5,0,length_includes_head=True,ls="--",color="b",width = 0.01,head_width=0.4)
+        tri[1].arrow(0,0,0,self.W_m5,length_includes_head=True,ls="--",color="b",width = 0.01,head_width=0.4)
+        tri[1].invert_yaxis()
+        fig.tight_layout()
+        for ax in tri.flat:
+            ax.set(xlabel='Velocity [m s^-1]', ylabel='Velocity [m s^-1]')
+        plt.show()
+        
+
 def find_turb(init_cfe,init_turb):
     new_turb = init_turb
     new_cfe = init_cfe
     i = new_turb.i
-    while np.round(new_turb.eta_ts,10) != np.round(new_turb.eta_ts_loss,10):
+    while np.round(new_turb.eta_ts,4) != np.round(new_turb.eta_ts_loss,4):
         turb = new_turb
         cfe = new_cfe
         print("Turbine iteration:",turb.i)
         print("Turbine efficiency:",turb.eta_ts)
         print("Turbine specific speed:",turb.N_s)
         print("Turbine total-to-total enthalpy drop:",turb.deltah_0)
-        print("Turbine total-to-total pressure ratio:",turb.PR_ts)
+        print("Turbine total-to-static pressure ratio:",turb.PR_ts)
         print("Turbine enthalpy losses:",turb.h_loss)
         i += 1
-        one_over_PR = (1 - (turb.C_0**2 / (2*turb.state_01.cp*turb.state_01.t)))**(turb.state_01.gamma/(turb.state_01.gamma-1))
-        new_PR = 1/one_over_PR
+        new_h_01 = (turb.eta_ts*turb.state_5ss.h - turb.h_05) / (turb.eta_ts - 1)
+        print(new_h_01)
+        new_state = H2(h=new_h_01,t=turb.T_01)
+        new_P_01 =new_state.p
+        new_PR = new_P_01 / turb.state_5.p
 
         new_dynamic_turb_inputs = {
             "PR_ts" : new_PR,
@@ -426,7 +462,7 @@ def find_turb(init_cfe,init_turb):
             "h_0ss" : 0,
         }
 
-        new_cfe = CFE(static_cfe_inputs,dynamic_turb_inputs,i)
+        new_cfe = CFE(static_cfe_inputs,new_dynamic_turb_inputs,i)
         new_delta_h0 = new_cfe.work_rate / new_cfe.mass_flow
         print(new_delta_h0)
         new_delta_h0ss = new_delta_h0 / turb.eta_ts_loss
@@ -458,7 +494,7 @@ if __name__ == "__main__":
     } 
 
     dynamic_turb_inputs = {
-        "PR_ts" : 1.00079,
+        "PR_ts" : 1.002,
         "eta_ts" : 0.9,
         "h_0ss" : 0,
         "N_s" : 0
@@ -470,15 +506,16 @@ if __name__ == "__main__":
 
     test_turb = find_turb(test_cfe,init_turb)
     test_turb.print_turbine()
+    test_turb.velocity_triangles()
     # test_turb.print_states()
     # """"prelim calcs"""
 
     """Checks:"""
     print()
-    state_5ss = H2(s = test_turb.s_2,p = test_turb.state_5.p)
-    eff_check = (test_turb.h_02 - test_turb.h_05) / (test_turb.h_02 - state_5ss.h)
+    state_5ss = H2(s = test_turb.state_01.s,p = test_turb.state_5.p)
+    eff_check = (test_turb.h_01 - test_turb.h_05) / (test_turb.h_01 - state_5ss.h)
     print(test_turb.h_02 - test_turb.h_05)
-    print(state_5ss.h)
+    print(test_turb.deltah_0)
     print(eff_check)
     print()
     print("Mach No. Check:")
