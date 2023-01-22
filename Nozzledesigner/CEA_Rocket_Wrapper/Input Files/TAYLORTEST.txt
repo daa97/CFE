@@ -1,0 +1,27 @@
+### CEA analysis performed on Tue 29-Nov-2022 21:03:08
+
+# Problem Type: "Rocket" (Infinite Area Combustor) 
+
+prob case=_______________9574 ro equilibrium frozen    
+
+# Pressure (1 value):
+p,psia= 550
+# Subsonic Area Ratio (1 value):
+subar= 1.5
+
+# You selected the following reactants:
+reac
+name H2                wt%=100.0000  t,k=3800.000 
+
+# You selected these options for output:
+# short version of output
+output short 
+# Proportions of any products will be expressed as Mass Fractions.
+output massf
+# Heat will be expressed as siunits
+output siunits
+
+# Input prepared by this script:/var/www/sites/cearun.grc.nasa.gov/cgi-bin/CEARUN/prepareInputFile.cgi
+
+### IMPORTANT:  The following line is the end of your CEA input file!
+end

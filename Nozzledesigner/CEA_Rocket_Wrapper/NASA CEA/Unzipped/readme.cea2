@@ -1,0 +1,52 @@
+
+
+
+       NOTES ON THE CEA FILES OBTAINED FROM NASA FILE SERVER RENEGADE
+
+
+     The program is described in NASA RP-1311, Parts I and II. 
+     
+     The files you should have downloaded are as follows:
+     
+         readme.cea2
+         cea2.f
+         cea.inc
+         thermo.inp
+         trans.inp
+         cea2.inp
+         cea2.out
+        
+     
+     The CEA program cea2.f with include file "cea.inc" replaces previous
+     cea400.for and cea400.for files.  The principal difference is that
+     all PARAMETER and COMMON statements are in the include file for cea2.f.
+     This makes it much easier to modify the input/output unit assignments
+     as well as the variable maximum dimensions (see page 39 in NASA 
+     RP-1311, part II). 
+     
+     General information to get started -
+     
+     1) First compile the fortran program 'cea2.f'. The 'cea.inc' must be 
+        available.
+     2) Input files have suffixes '.inp'.
+     3) Your CEA executable calls for the prefixes interactively.
+     4) CEA input files 'thermo.inp' and 'trans.inp' must be run first in 
+        order to obtain binary files 'thermo.lib' and 'trans.lib'.
+        These binary libraries are then available for your problem input 
+        such as the input file of sample cases 'cea2.inp'.
+     
+     After successfully running 'thermo.inp', you also obtain a 'thermo.out'
+     file which I suggest you print and keep. This file lists the species 
+     names, the ref/date code, the heat of formation in Joules/mol, and
+     some reference information.
+
+     Have fun.  
+     
+     
+     Bonnie McBride
+     
+     (216) 433-5870
+     mcbride@grc.nasa.gov
+     MS 5-10
+     21000 Brookpark Road
+     Cleveland, OH  44135
