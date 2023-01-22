@@ -38,39 +38,40 @@ nozzle_inputs = {
         "t_3c" : 0.02,
         "t_maxc" : 0.06,
         "dc" : 0.3,
-        "sc" : 0.75
+        "sc" : 0.75,
+        "setting angle" : 10 * np.pi /180
     }
 test_cfe = tdb.CFE(static_cfe_inputs,dynamic_turb_inputs,1)
 
 init_turb = tdb.turbine(test_cfe,test_cfe.static_turb_inputs,dynamic_turb_inputs,1)
 
 noz = tdb.nozzle(nozzle_inputs,init_turb)
-noz.create_cascade()
-noz.find_setting_angle()
-noz_out = noz.calc_naca_profile()
-nozx = noz_out[0]
-nozy = noz_out[1]
-nozchi = noz_out[2]
-nozsuc = noz_out[3]
-nozpres = noz_out[4]
-r_2 = noz.t_2c/2 * noz.c
-r_3 = noz.t_3c/2 * noz.c
-thetas = np.linspace(0, 2 * np.pi, num = 100)
-le = np.zeros((100,2))
-te = np.zeros((100,2))
-for i,theta in enumerate(thetas):
-    le[i,0] = r_2 * (np.cos(theta))
-    le[i,1] = r_2 * (np.sin(theta))
-    te[i,0] = r_3 * (np.cos(theta)) + nozx[-1]
-    te[i,1] = r_3 * (np.sin(theta)) + nozy[-1]
-plt.plot(le[:,0],le[:,1])
-plt.plot(te[:,0],te[:,1])
-plt.plot(nozx,nozy,marker = ".")
-plt.plot(nozpres[:,0],nozpres[:,1],marker = ".")
-plt.plot(nozsuc[:,0],nozsuc[:,1],marker = ".")
-# plt.xlim([-0.01,1.01])
-# plt.ylim([-0.1,0.1])
-plt.show()
+# noz.create_cascade()
+# noz.find_setting_angle()
+# noz_out = noz.calc_naca_profile()
+# nozx = noz_out[0]
+# nozy = noz_out[1]
+# nozchi = noz_out[2]
+# nozsuc = noz_out[3]
+# nozpres = noz_out[4]
+# r_2 = noz.t_2c/2 * noz.c
+# r_3 = noz.t_3c/2 * noz.c
+# thetas = np.linspace(0, 2 * np.pi, num = 100)
+# le = np.zeros((100,2))
+# te = np.zeros((100,2))
+# for i,theta in enumerate(thetas):
+#     le[i,0] = r_2 * (np.cos(theta))
+#     le[i,1] = r_2 * (np.sin(theta))
+#     te[i,0] = r_3 * (np.cos(theta)) + nozx[-1]
+#     te[i,1] = r_3 * (np.sin(theta)) + nozy[-1]
+# plt.plot(le[:,0],le[:,1])
+# plt.plot(te[:,0],te[:,1])
+# plt.plot(nozx,nozy,marker = ".")
+# plt.plot(nozpres[:,0],nozpres[:,1],marker = ".")
+# plt.plot(nozsuc[:,0],nozsuc[:,1],marker = ".")
+# # plt.xlim([-0.01,1.01])
+# # plt.ylim([-0.1,0.1])
+# plt.show()
 # test_cfe = tdb.CFE(static_cfe_inputs,dynamic_turb_inputs,1)
 
 # init_turb = tdb.turbine(test_cfe,test_cfe.static_turb_inputs,dynamic_turb_inputs,1)

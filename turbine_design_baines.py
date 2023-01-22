@@ -576,7 +576,7 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
 class nozzle:
     def __init__(self,nozzle_inputs,turb):
         self.N_n = turb.n_r + 2 # Number of nozzle blades guess
-        self.N_p_n = 1000
+        self.N_p_n = 20
         self.turb = turb
         self.sc = nozzle_inputs["sc"]
         self.theta = nozzle_inputs["camber angle"]
@@ -586,6 +586,7 @@ class nozzle:
         self.t_maxc = nozzle_inputs["t_maxc"]
         self.dc = nozzle_inputs["dc"]
         self.radius_ratio = nozzle_inputs["radius ratio"]
+        self.gam_guess = nozzle_inputs["setting angle"]
         # self.chi_2 = np.arctan((4 * self.bc)/(4*self.ac -1))
         # self.chi_3 = np.arctan()
         self.r_3 = turb.r_3
@@ -623,7 +624,15 @@ class nozzle:
         self.naca_chi = naca_output[2]
         self.naca_suc_surf = naca_output[3]
         self.naca_pres_surf = naca_output[4]
+
+        self.gamma_3 = self.find_setting_angle()
+        self.gamma_2 = np.arccos(self.r_3 * np.cos(self.gamma_3) / self.r_2)
+        print(self.gamma_3*180/np.pi)
+        self.beta_3b = self.gamma_3 - self.naca_chi[-1]
+        self.beta_2b = self.gamma_2 - self.naca_chi[0]
+        print(self.beta_2b*180/np.pi)
         
+
 
 
     def calc_naca_profile(self):
@@ -709,17 +718,16 @@ class nozzle:
 
         suc[-1,0] = xcs[-1] - 0.5 * tcs[-1] * np.sin(chi[-1])
         suc[-1,1] = ycs[-1] + 0.5 * tcs[-1] * np.cos(chi[-1])
-        print(chi)
+        # print(chi)
         return [xcs,ycs,chi,suc,pres]
 
-    def create_cascade(self):
+    def create_cascade(self,gam_guess):
         rot_cam = np.zeros((self.N_p_n,2))
         rot_suc = np.zeros((self.N_p_n,2))
         rot_pres = np.zeros((self.N_p_n,2))
         blade_2_cam = np.zeros((self.N_p_n,2))
         blade_2_suc = np.zeros((self.N_p_n,2))
         blade_2_pres = np.zeros((self.N_p_n,2))
-        gam_guess = 10 / 180 * np.pi
         # r_3c = self.sc * self.N_n / (2 * np.pi)
         c = self.d_3 * 1/self.sc 
         for i,point in enumerate(self.naca_cam):
@@ -743,30 +751,59 @@ class nozzle:
             blade_2_cam[i,1] = blade_2_camber[1]
 
             blade_2_pres[i,0] = blade_2_pressure[0]
-            if blade_2_cam[i,0] < np.abs*(blade_2_pres[i,0]):
+            if np.abs(blade_2_cam[i,0]) < np.abs(blade_2_pres[i,0]):
                 blade_2_pres[i,0] = - blade_2_pres[i,0]
             blade_2_pres[i,1] = blade_2_pressure[1]
 
             blade_2_suc[i,0] = blade_2_suction[0]
-            if blade_2_cam[i,0] > np.abs(blade_2_suc[i,0]):
+            if np.abs(blade_2_cam[i,0]) > np.abs(blade_2_suc[i,0]):
                 blade_2_suc[i,0] = - blade_2_suc[i,0]
             blade_2_suc[i,1] = blade_2_suction[1]
 
-        thetas = np.linspace(0, 2 * np.pi, num = 100)
-        circ = np.zeros((100,2))
-        for i,theta in enumerate(thetas):
-            circ[i,0] = self.r_3 * (np.cos(theta))
-            circ[i,1] = self.r_3 * (np.sin(theta))
-        plt.plot(circ[:,0],circ[:,1])
-        plt.plot(blade_2_suc[:,0],blade_2_suc[:,1])
-        plt.plot(blade_2_pres[:,0],blade_2_pres[:,1],marker=".")
-        plt.plot(blade_2_cam[:,0],blade_2_cam[:,1])
-        plt.plot(rot_cam[:,0],rot_cam[:,1])
-        plt.plot(rot_suc[:,0],rot_suc[:,1])
-        plt.plot(rot_pres[:,0],rot_pres[:,1])
-        plt.show()
+
+        """Find the throat of the stator cascade"""
+        min_point = rot_suc[-1]
+        d = np.zeros((self.N_p_n,))
+        for i,point in enumerate(blade_2_pres):
+            d[i] = np.sqrt((min_point[0]-point[0])**2 + (min_point[1]-point[1])**2)
+            if i > 0:
+                if d[i] < d[i-1]:
+                    min_d = d[i]
+                    min_d_point = point
+        throatx = [min_point[0],min_d_point[0]]
+        throaty = [min_point[1],min_d_point[1]]
+
+        # thetas = np.linspace(0, 2 * np.pi, num = 100)
+        # circ = np.zeros((100,2))
+        # for i,theta in enumerate(thetas):
+        #     circ[i,0] = self.r_3 * (np.cos(theta))
+        #     circ[i,1] = self.r_3 * (np.sin(theta))
+        # plt.plot(throatx,throaty,color="r")
+        # plt.plot(circ[:,0],circ[:,1])
+        # plt.plot(blade_2_suc[:,0],blade_2_suc[:,1])
+        # plt.plot(blade_2_pres[:,0],blade_2_pres[:,1])
+        # plt.plot(blade_2_cam[:,0],blade_2_cam[:,1])
+        # plt.plot(rot_cam[:,0],rot_cam[:,1])
+        # plt.plot(rot_suc[:,0],rot_suc[:,1])
+        # plt.plot(rot_pres[:,0],rot_pres[:,1])
+        # plt.show()
+
+        return [rot_suc,rot_pres,rot_cam,min_d,min_point,min_d_point]
 
     def find_setting_angle(self):
+        throat_width = self.o_3
+        gam = self.gam_guess
+        print(gam)
+        rotated_blade = self.create_cascade(gam)
+        throat_width_guess = rotated_blade[3]
+        while np.round(throat_width,4) != np.round(throat_width_guess,4):
+            gam = np.arcsin(np.sin(gam)*(throat_width/throat_width_guess))
+            print(gam)
+            rotated_blade = self.create_cascade(gam)
+            throat_width_guess = rotated_blade[3]
+        return gam
+
+    def find_alpha_2(self):
         pass
 
     def plot_naca_norm(self):
@@ -858,7 +895,12 @@ def find_turb(init_cfe,init_turb):
         new_static_turb_inputs = turb.static_turb_inputs
         new_turb = turbine(new_cfe,new_static_turb_inputs,new_dynamic_turb_inputs,i)
     return new_turb
-            
+
+def find_stator(nozzle_inputs,turb):
+    pass
+
+    
+
 if __name__ == "__main__":
     pass
     # working_fluid_inputs = {
