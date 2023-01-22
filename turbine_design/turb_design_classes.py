@@ -27,4 +27,3 @@ class RadialTurbine:
     def __init__(self,CFE,static_turb_inputs,dynamic_turb_inputs,i):
         self.i = i
         self.CFE = CFE
-        self
