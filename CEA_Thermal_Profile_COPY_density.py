@@ -9,6 +9,7 @@ import pprint
 import os
 from timeit import Timer
 import sys
+from fluids import H2
 
 #FIXME - Implement CUDA core solving of eqns
 # import numba
@@ -23,12 +24,18 @@ class Face:
 
 class Cell:
     def __init__(self,cell_len,cell_temp,cell_radius,CFE_len,BCs,i,num_cells,press,m_b,mass_flow,omega): 
+        self.press  = press*(10**6) #Pa
+        self.cell_temp   = float(cell_temp) #FIXME - assign temp from temp profile
+        self.H2     = H2(P=self.press, T=self.cell_temp)
+        self.rho_H  = self.H2.rho
+        self.Cp     = self.H2.Cp
+        self.h      = self.H2.h
+
         self.i           = i
         self.cell_len    = cell_len 
         self.BC          = BCs 
         self.cell_radius = cell_radius #Taken from CFE create_mesh method
-        self.cell_temp   = float(cell_temp) #FIXME - assign temp from temp profile
-        self.R_H2        = 4124.2 #J/kg/K
+
 
         self.omega  = omega #rpm
         self.m_dot  = mass_flow #kg/s
@@ -36,18 +43,14 @@ class Cell:
         self.k_U    = 13.7 #W/m-K 
         self.rho_U  = self.calc_rho_U() #kg/m^3
         self.Cp_U   = 179.78 + 0.0131 * self.cell_temp #J/kg/K - R**2 - 0.9998
-        self.press  = press*(10**6) #Pa
+
 
         self.V_b_o  = 1e-9 #m^3
         self.m_b    = m_b #kg
         self.m_b_o  = self.calc_init_bubble_mass() #kg
-
-        self.V_B    = self.m_b_o * self.R_H2 * self.cell_temp / self.press #m^3
+        self.V_B    = self.m_b_o * self.H2.volume #m^3
         self.u_B    = self.calc_avg_velocity() #m/s
-
-        self.rho_H  = self.calc_rho_H2() #kg/m^3
-        self.Cp     = self.get_Cp() #J/kg/K
-        self.h      = self.get_h()  #J/kg
+        
 
         self.num_cells  = num_cells
         self.CFE_len    = CFE_len
@@ -56,10 +59,11 @@ class Cell:
         self.face_e = Face(self.cell_radius-self.cell_len/2,self.CFE_len)
         self.face_w = Face(self.cell_radius+self.cell_len/2,self.CFE_len)
 
-        self.cell_vol   = self.calc_cell_volume()
-        self.gas_vol    = self.calc_gas_vol()
+        self.cell_vol   = np.pi * ((self.face_w.radius)**2 - (self.face_e.radius)**2) * self.CFE_len
+        self.gas_vol    = self.m_dot * self.H2.volume * self.cell_len / self.u_B
         self.void       = self.calc_void_fraction()
-        self.vol_void   = self.calc_vol_void()
+        self.vol_void   = self.gas_vol / self.cell_vol
+
         self.num_b      = self.calc_num_b()
         self.drag       = self.calc_drag()
 
@@ -70,9 +74,6 @@ class Cell:
         u_B = 2/3 * np.sqrt(r_b * a_c)
         return u_B
 
-    def calc_rho_H2(self):
-        rho = self.press / (self.R_H2 * self.cell_temp)
-        return rho
     
     def calc_num_b(self):
         num_b = (self.m_dot/self.m_b_o) / self.u_B * self.cell_len
@@ -84,64 +85,15 @@ class Cell:
 
     def calc_void_fraction(self):
         N_B_dot = self.m_dot / self.cell_radius / self.u_B / self.rho_H
-        void = N_B_dot / 2 / np.pi / self.CFE_len 
+        void = N_B_dot / 2 / np.pi / self.CFE_len
         return void
 
     def calc_init_bubble_mass(self):
         if self.i ==0:
-            rho_H = self.press / (4124.2 * self.cell_temp)
-            m_b_o = rho_H * self.V_b_o
+            m_b_o = self.rho_H * self.V_b_o
             return m_b_o
         else:
             return self.m_b
-
-    def calc_cell_volume(self):
-        cell_vol = np.pi * ((self.face_w.radius)**2 - (self.face_e.radius)**2) * self.CFE_len
-        return cell_vol
-
-    def calc_gas_vol(self):
-        V_g = self.m_dot * self.R_H2 * self.cell_temp * self.cell_len / self.u_B / self.press
-        return V_g
-
-    def calc_vol_void(self):
-        vol_void = self.gas_vol / self.cell_vol
-        return vol_void
-
-    def get_Cp(self):
-        try:
-            press = self.press / 101325 #kPa to atm
-            points = (T_axis,P_axis)
-            values = Cp_grid       
-            xi = np.array([self.cell_temp, press])
-            Cp = float(inter.interpn(points,values,xi)*1000)
-            return Cp
-        except ValueError:
-            press = self.press / 101325 #kPa to atm
-            points = (T_axis,P_axis)
-            values = Cp_grid       
-            xi = np.array([10000, press])
-            Cp = float(inter.interpn(points,values,xi)*1000)
-            return Cp
-
-    def get_h(self):
-        try:
-            press = self.press / 101325 #kPa to atm
-            points = (T_axis,P_axis)
-            values = h_grid    
-            xi = np.array([self.cell_temp, press])
-            h = float(inter.interpn(points,values,xi)*1000)
-            return h
-        except ValueError:
-            press = self.press / 101325 #kPa to atm
-            points = (T_axis,P_axis)
-            values = h_grid      
-            if self.cell_temp > 0: 
-                xi = np.array([10000, press])
-                h = float(inter.interpn(points,values,xi)*1000)
-            else:
-                xi = np.array([400, press])
-                h = float(inter.interpn(points,values,xi)*1000)
-            return h
 
     def find_phase_U(self):
         if self.temp > 4300:
@@ -344,10 +296,8 @@ def solve(init_CFE):
             res = 0          
             
     next_CFE = CFE(old_CFE.OR_U,old_CFE.annulus_t,old_CFE.L, old_CFE.MW,old_CFE.num_cells,T_old,old_CFE.mass_flow,old_CFE.rpm,old_CFE.P_0,old_CFE.BC,old_CFE.q_profile_input,iteration = old_CFE.it + 1,OG_power=old_CFE.OG_MW)
-    points = (T_axis,P_axis)
-    values = h_grid    
     xi = np.array([next_CFE.BC[0][0], next_CFE.P_0/0.101325])
-    wall_h = float(inter.interpn(points,values,xi)*1000)
+    wall_h = H2(T=xi[0],P=xi[1])
     e_to_H2 = next_CFE.mass_flow * (next_CFE.mesh[next_CFE.num_cells-1].h - wall_h)
 
     T_ghost = 2 * next_CFE.mesh[0].BC[0] - next_CFE.mesh[0].cell_temp #FIXME - Ghost Dirichlet BC is causing converging oscillations
@@ -410,36 +360,7 @@ def solve(init_CFE):
     return [T_new,mom_check,next_CFE.X,Q_res,next_CFE.q_tot,rho_H]
 
             
-def create_interpolation_grid():
-    Tmp = []
-    Cp_grid =[]
-    h_grid = []
-    with open(os.path.join(os.path.dirname( __file__ ), 'H2_data_Cp.csv'),newline='') as csvfile:
-        C_p = csv.reader(csvfile,csv.QUOTE_NONNUMERIC,delimiter=',')
-        for i,row in enumerate(C_p):
-            if i == 0:
-                row.pop(0)
-                P = [float(x) for x in row]
 
-            else:
-                Tmp.append(row[0])
-                row.pop(0)
-                Cp = [float(y) for y in row]
-                Cp_grid.append(Cp)
-    with open(os.path.join(os.path.dirname( __file__ ), 'H2_data_h.csv'),newline='') as csvfile:
-        h_vals = csv.reader(csvfile,csv.QUOTE_NONNUMERIC,delimiter=',')
-
-        for i,row in enumerate(h_vals):
-            if i == 0:
-                row.pop(0)
-            else:
-                row.pop(0)
-                h = [float(k) for k in row]
-                h_grid.append(h)
-    T = [float(temp.replace(",","")) for temp in Tmp]
-
-
-    return [T,P,Cp_grid,h_grid]
 
 if __name__ =="__main__":
 
@@ -450,12 +371,6 @@ if __name__ =="__main__":
     PS_data_2 = np.flip(PS2)
     PS_data_3 = np.flip(PS3)
 
-    H2_grid_prop = create_interpolation_grid()
-
-    Cp_grid = H2_grid_prop[2]
-    T_axis = H2_grid_prop[0]
-    P_axis = H2_grid_prop[1]
-    h_grid = H2_grid_prop[3]
     v_f = "1.1 - 23.333 * cell_radius" #"2.16 - 48 * cell_radius"
     T_P = "1500 "#+ 1.5*(20/(r))"
     q_tp = "10000000 + 150**(100*r)"
@@ -467,7 +382,7 @@ if __name__ =="__main__":
     N = 7000
     mdot = .108
     L = .84
-    num_cells = 500
+    num_cells = 100
     D_1 = CFE(r2,r2-r1,L,7, num_cells, T_P, mdot, N, P_core,BCs,PS_data_1,OG_power=7)
 
     R_1 = solve(D_1)
@@ -486,8 +401,8 @@ if __name__ =="__main__":
     prop_density = np.array(R_1[5])
 
     mix_density = fuel_density * (1 - void) + prop_density * void
-    np.save(f"density_{num_cells}cells.npy", mix_density)
-    np.save(f"radius_{num_cells}cells.npy", radius)
+    np.save(f"density_{num_cells}CEA.npy", mix_density)
+    np.save(f"radius_{num_cells}CEA.npy", radius)
 
     print("Design 1 Max Temp:",np.amax(T_1))
     print("Design 1 Max Void:",np.amax(X_1))

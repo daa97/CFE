@@ -185,11 +185,11 @@ class FluidProperty:
     
 class FluidState:
     '''Representation of one particular state of a fluid with a given pressure, temperature, etc.'''
-    def __init__(self, fluid, props):
+    def __init__(self, fluid, props, linear=False):
         self.properties = dict()
         self.fluid = fluid # Corresponding fluid with property tables
+        self.linear = linear
         self.solve_properties(props) # solve for fluid properties
-
     def __getattr__(self, __name: str):
         '''overrides default FluidState.attribute behavior for unrecognized attribute names. Allows parsing of any fluid property names desired'''
         for p in self.fluid.properties:
@@ -278,7 +278,7 @@ class FluidState:
         temperature = t1_p(pressure_val)
         self.properties[self.fluid.P] = pressure_val
         self.properties[self.fluid.T] = temperature
-                
+
     # control printout behavior of fluid state
     def __str__(self):
 
