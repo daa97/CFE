@@ -3,6 +3,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import scipy.interpolate as inter
 import csv
+import time
 from fluids import *
 
 """
@@ -34,7 +35,7 @@ class CFE:
         self.cfe_state = H2(P=self.P_in,T = self.T_in)
         self.gamma = self.cfe_state.gamma
         T = self.T_in
-        self.mu = eval("-0.00000000000144 *T**2 + 0.0000000169 *T+ 0.00000464")
+        self.mu = -0.00000000000144 *T**2 + 0.0000000169 *T+ 0.00000464
         self.rho = self.cfe_state.rho #Density, [kg/m^3]
         self.nu = self.mu/self.rho #Kinematic viscosity [m^2 s^-1]
         
@@ -157,7 +158,7 @@ class turbine:
         """Preliminary Calcs: Rotor"""
 
         """Isentropic Values"""
-        self.v_s = 0.6913 # 0.737 * self.N_s**0.2
+        self.v_s = self.calc_vel_ratio(dynamic_turb_inputs) # 0.737 * self.N_s**0.2
         self.C_0 = np.sqrt(2 * self.h_0ss)
         """Total and static states at station 4"""
         self.U_4 = self.C_0 * self.v_s # Blade spped [m/s]
@@ -217,35 +218,9 @@ class turbine:
         self.t_lead = 0.04 * self.r_4
         self.t_trail = 0.02 * self.r_4
 
-        """Preliminary Calcs: Nozzle"""
-        self.N_n = self.n_r + 2 # Number of nozzle blades guess
-        self.C_theta3 = self.r_4 / self.r_3
-        self.h_03 = self.state_01.h
-        self.P_03 = self.P_04
-        self.b_3 = self.b_4
-        self.state_03 = H2(h=self.h_03,p=self.P_03)
-        rho_3_guess = 0
-        rho_3_check = self.state_03.rho
-        while rho_3_check - rho_3_guess != 0:
-            rho_3_guess = rho_3_check
-            C_m3 = self.CFE.mass_flow / (2 * np.pi * self.r_3 * self.b_3 * rho_3_guess)
-            C_3 = np.sqrt(C_m3**2 + self.C_theta3**2)
-            h_3 = self.h_03 - 0.5 * C_3**2
-            s_3 = self.state_03.s
-            state_3 = H2(s=s_3,h=h_3)
-            rho_3_check = state_3.rho
-
-        self.C_m3 = C_m3
-        self.state_3 = state_3
-        self.C_3 = C_3
-        self.alpha_3_rad = np.arctan(self.C_theta3/self.C_m3)
-        self.alpha_3 = self.alpha_3_rad * 180 / np.pi
-        self.d_3 = 2 * np.pi * self.r_3 / self.N_n # Pitch is usually s but since s is entropy I am using d
-        self.o_3 = self.d_3 * np.sin(self.alpha_3_rad)
-
         """Preliminary Calcs: The Bowl"""
         self.r_1o = self.CFE.R_o
-        self.r_1i = self.r_1o - self.b_3
+        self.r_1i = self.r_1o - self.b_4
         self.r_cbo = self.r_1o - self.r_3
         self.r_cbi = self.r_1i - self.r_3
         # print(self.r_cbo)
@@ -257,22 +232,6 @@ class turbine:
         self.flow_coef = self.C_m5 / self.U_4
         self.load_coef = self.deltah_0 / (self.U_4**2)
         self.D_s = 2 * self.r_4 * (self.h_0ss)**0.25 / self.Q**0.5
-
-    def nozzle_blade_design(self,s_div_c = 0.75, theta = 0, a_div_c = 0.5, t_2_div_c = 0.025,
-        t_3_div_c = 0.012, t_max_div_c = 0.06, d_div_c = 0.4,radius_ratio=1.1,camber_angle=0):
-        N_p_n = 30
-        x_div_c = np.linspace(0,1,N_p_n)
-        y_div_c_guess = 1
-        y_div_c_check = 0
-        b_div_c = (np.sqrt(1 + (4 * np.tan(camber_angle))**2 * (a_div_c * - a_div_c**2 - 3/16))-1) / (4 * np.tan(camber_angle))
-        for x in x_div_c:
-            while y_div_c_guess != y_div_c_check:
-                y_div_c_guess = y_div_c_check
-                y_div_c_num = (x * (1 - x))
-                y_div_c_den_1 = (1 - 2 * a_div_c)**2 / (4 * b_div_c**2) * y_div_c_guess
-                y_div_c_den_2 = (1 - 2 * a_div_c) / (b_div_c) * x
-                y_div_c_den_3 = (1 - 4 * a_div_c) / (4 * b_div_c)
-                y_div_c_check = y_div_c_num / (y_div_c_den_1 + y_div_c_den_2 - y_div_c_den_3)
         
     def turbine_feasibility_checks(self):
         pass
@@ -287,7 +246,7 @@ class turbine:
         Q = self.CFE.mass_flow / rho_05
         eta_ts = 0
         """Eta Iteration"""
-        while round(eta_ts,7) != round(self.eta_ts_guess,7):
+        while round(eta_ts,4) != round(self.eta_ts_guess,4):
             if eta_ts != 0:
                 self.eta_ts_guess = eta_ts
 
@@ -573,9 +532,15 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
         plt.ylim([-.01, 0.06])
         plt.show()
 
+    def calc_vel_ratio(self,dynamic_turb_inputs):
+        if dynamic_turb_inputs["v_s"] == "default":
+            return 0.737 * self.N_s**0.2
+        else:
+            return dynamic_turb_inputs["v_s"]
+
 class nozzle:
     def __init__(self,nozzle_inputs,turb):
-        self.N_n = turb.n_r + 2 # Number of nozzle blades guess
+        self.N_n = 13 # Number of nozzle blades guess
         self.N_p_n = 20
         self.turb = turb
         self.sc = nozzle_inputs["sc"]
@@ -591,7 +556,6 @@ class nozzle:
         # self.chi_3 = np.arctan()
         self.r_3 = turb.r_3
         self.r_2 = self.r_3 * self.radius_ratio
-        self.N_n = turb.n_r + 2 # Number of nozzle blades guess
         self.C_theta3 = turb.r_4 / turb.r_3 * turb.C_theta4
         self.h_03 = turb.state_01.h
         self.P_03 = turb.P_04
@@ -611,10 +575,13 @@ class nozzle:
         self.C_m3 = C_m3
         self.state_3 = state_3
         self.C_3 = C_3
-        self.alpha_3_rad = np.arctan(self.C_theta3/self.C_m3)
+        self.alpha_3_rad = np.arctan(self.C_m3/self.C_theta3)
         self.alpha_3 = self.alpha_3_rad * 180 / np.pi
+        print(self.alpha_3)
         self.d_3 = 2 * np.pi * self.r_3 / self.N_n # Pitch is usually s but since s is entropy I am using d
+        print(self.d_3)
         self.o_3 = self.d_3 * np.sin(self.alpha_3_rad)
+        print(self.o_3)
         self.c = 1/self.sc * self.d_3
 
         naca_output = self.calc_naca_profile()
@@ -627,14 +594,13 @@ class nozzle:
 
         self.gamma_3 = self.find_setting_angle()
         self.gamma_2 = np.arccos(self.r_3 * np.cos(self.gamma_3) / self.r_2)
-        print(self.gamma_3*180/np.pi)
+        print("Gamma 3:",self.gamma_3*180/np.pi)
         self.beta_3b = self.gamma_3 - self.naca_chi[-1]
         self.beta_2b = self.gamma_2 - self.naca_chi[0]
         print(self.beta_2b*180/np.pi)
+
+        self.alpha_2 = self.find_alpha_2()
         
-
-
-
     def calc_naca_profile(self):
         N_p_n = self.N_p_n
         check = np.zeros((N_p_n,))
@@ -792,19 +758,49 @@ class nozzle:
 
     def find_setting_angle(self):
         throat_width = self.o_3
+        print("Throat width:",throat_width)
         gam = self.gam_guess
-        print(gam)
+        print("gam:",gam)
         rotated_blade = self.create_cascade(gam)
         throat_width_guess = rotated_blade[3]
+        print("o:",throat_width_guess)
         while np.round(throat_width,4) != np.round(throat_width_guess,4):
             gam = np.arcsin(np.sin(gam)*(throat_width/throat_width_guess))
-            print(gam)
+            print("gamma:",gam)
             rotated_blade = self.create_cascade(gam)
             throat_width_guess = rotated_blade[3]
+            print("o:",throat_width_guess)
         return gam
 
     def find_alpha_2(self):
-        pass
+        r = np.linspace(self.r_2,self.r_3,self.N_p_n)
+        gammas = np.zeros((self.N_p_n,))
+        betas = np.zeros((self.N_p_n,))
+        gammas[0] = self.gamma_2
+        betas[0] = self.beta_2b
+        L = np.zeros((self.N_p_n))
+        for i,gamma in enumerate(gammas):
+            if i > 0:
+                gammas[i] = np.arccos(self.r_3 * np.cos(self.gamma_3) / r[i])
+                betas[i] = gammas[i] - self.naca_chi[i]
+        print("Gammas")
+        print(gammas)
+        print("Betas")
+        print(betas)
+        for i in range(len(L)):
+            if i > 0:
+                L[i] = L[i-1] + (r[i]-r[i-1])/(np.sin((betas[i])))
+        print(L)
+        i_star_1 = (3.6 * np.sqrt(10*self.t_2c*self.c/L[-1]*-1) + np.abs((self.beta_3b-self.beta_2b)/3.4))
+        i_star_2 = np.sqrt(-1*L[-1]/(self.sc*self.c))
+        i_star_3 = np.abs(self.beta_3b-self.beta_2b)
+        i_star = i_star_1*i_star_2-i_star_3
+        print(i_star*180/np.pi)
+
+        alpha_2 = self.beta_2b - i_star * np.sign(self.beta_3b-self.beta_2b)
+        print(alpha_2*180/np.pi)
+
+        return alpha_2
 
     def plot_naca_norm(self):
         # FIXME - Make this defined within the nozzle class
@@ -890,15 +886,16 @@ def find_turb(init_cfe,init_turb):
         new_dynamic_turb_inputs = {
             "PR_ts" : new_PR,
             "eta_ts" : turb.eta_ts_loss,
-            "h_0ss" : new_delta_h0ss
+            "h_0ss" : new_delta_h0ss,
+            "v_s" : turb.v_s
             }
         new_static_turb_inputs = turb.static_turb_inputs
         new_turb = turbine(new_cfe,new_static_turb_inputs,new_dynamic_turb_inputs,i)
     return new_turb
 
 def find_stator(nozzle_inputs,turb):
+    # gams = np.zeros(self.N_pb)
     pass
-
     
 
 if __name__ == "__main__":

@@ -8,20 +8,21 @@ import turbine_design_baines as tdb
 #         psi = eta/(2 * nu**2)
 static_cfe_inputs = {
     "inner_radius" : 0.056, #Channel inner radius [m]
-    "outer_radius" : 0.058, #Channel outer radius [m]
-    "length" : 0.84, #CFE channel length [m]
+    "outer_radius" : 0.064, #Channel outer radius [m]
+    "length" : 0.94, #CFE channel length [m]
     "rpm" : 7000, #CFE inner SiC cylinder revolutions per minute
     "mass_flow" : 0.108, #CFE channel mass flow rate [kg s^-1]
 
     "temp" : 450, #[K]
-    "press" : 12.5 #MPa - Turbine Inlet Pressure
+    "press" : 12.18 #MPa - Turbine Inlet Pressure
 } 
 
 dynamic_turb_inputs = {
-    "PR_ts" : 4,
+    "PR_ts" : 1.0008,
     "eta_ts" : 0.9,
     "h_0ss" : 0,
-    "N_s" : 0
+    "N_s" : 0,
+    "v_s" : 0.6913
 }
 opts = {
     "dim" : "Y",
@@ -32,20 +33,26 @@ opts = {
 
 nozzle_inputs = {
         "radius ratio" : 1.1,
-        "camber angle" : .0000001,
-        "ac" : 0.3,
-        "t_2c" : 0.03,
-        "t_3c" : 0.02,
+        "camber angle" : -np.pi/6,
+        "ac" : 0.25,
+        "t_2c" : 0.025,
+        "t_3c" : 0.012,
         "t_maxc" : 0.06,
-        "dc" : 0.3,
+        "dc" : 0.4,
         "sc" : 0.75,
-        "setting angle" : 10 * np.pi /180
+        "setting angle" : 10/180*np.pi
     }
+
 test_cfe = tdb.CFE(static_cfe_inputs,dynamic_turb_inputs,1)
 
 init_turb = tdb.turbine(test_cfe,test_cfe.static_turb_inputs,dynamic_turb_inputs,1)
 
-noz = tdb.nozzle(nozzle_inputs,init_turb)
+test_turb = tdb.find_turb(test_cfe,init_turb)
+
+test_turb.print_turbine(opts)
+
+# noz = tdb.nozzle(nozzle_inputs,init_turb)
+
 # noz.create_cascade()
 # noz.find_setting_angle()
 # noz_out = noz.calc_naca_profile()
