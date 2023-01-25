@@ -22,7 +22,7 @@ dynamic_turb_inputs = {
     "eta_ts" : 0.9,
     "h_0ss" : 0,
     "N_s" : 0,
-    "v_s" : 0.6913
+    "v_s" : 0.691
 }
 opts = {
     "dim" : "Y",
