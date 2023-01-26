@@ -101,12 +101,6 @@ class CFE:
         P_01 = self.P_in * (T_01/self.T_in)**(gam/(gam-1))
         return [T_01,U_thetaB,U_mB,P_01]
 
-def eval_scalar_input(inpt):
-    if isinstance(inpt, str):
-        return eval(inpt)
-    else:
-        return inpt 
-
 class station:
     def __init__(self,turb):
         pass
@@ -217,7 +211,6 @@ class turbine:
         self.r_2 = 1.1 * self.r_3
         self.t_lead = 0.04 * self.r_4
         self.t_trail = 0.02 * self.r_4
-
         """Preliminary Calcs: The Bowl"""
         self.r_1o = self.CFE.R_o
         self.r_1i = self.r_1o - self.b_4
@@ -234,7 +227,76 @@ class turbine:
         self.D_s = 2 * self.r_4 * (self.h_0ss)**0.25 / self.Q**0.5
         
     def turbine_feasibility_checks(self):
-        pass
+        results = []
+        VR1 = self.C_m5/self.U_4
+        rad_ratio = self.r_h5/self.r_4
+        rohlik_rad_ratio_lim = 1.29*self.N_s
+        MVR = self.C_m5/self.C_m4
+        R = (self.h_4 - self.h_5) / (self.h_01 - self.h_05)
+        delta_zr_check = 1.5*self.b_4
+        r_s5_check = 0.9 * self.r_4
+
+        print(f'Exit meridional velocity ratio: {VR1}')
+        if 0.2 <= VR1 and VR1 <= 0.4:
+            print("Passed\n")
+        else:
+            print("Failed\n")
+
+        print(f'Radius ratio: {rad_ratio}')
+        if self.r_s5/self.r_4 <= 0.78:
+            print("Baljie radius ratio test passed")
+        else:
+            print("Baljie radius ratio test failed")
+        
+        if rad_ratio <= 0.7:
+            print("Rohlik radius ratio test passed")
+        else:
+            print("Rohlik radius ratio test failed")
+
+        if self.r_s5 < r_s5_check:
+            print("Aungier radius check passed\n")
+        else:
+            print("Aungier radius check failed\n")
+        
+        print(f"Meridional velocity ratio: {MVR}")
+        if 1 <= MVR and MVR <= 1.5:
+            print("Passed\n")
+        else:
+            print("Failed\n")
+        
+        print(f'Stage reaction: {R}')
+        if 0.45 <= R and R<=0.65:
+            print("Passed\n")
+        else:
+            print("Failed\n")
+        
+        print(f"Relative flow inlet angle: {self.beta_4}")
+        if -20 >= self.beta_4 and self.beta_4 >= -40:
+            print("Passed\n")
+        else:
+            print("Failed\n")
+        
+        print(f'Rotor axial length: {self.z_r}')
+        if self.z_r >= delta_zr_check:
+            print("Passed\n")
+        else:
+            print("Failed\n")
+
+        blade_blockage_inlet = self.n_r * self.t_lead / (2 * np.pi * np.sin(np.pi/2 - self.beta_4_rad))
+
+        print(f"Inlet blade metal blockage factor: {blade_blockage_inlet}")
+        if blade_blockage_inlet < 0.5:
+            print("Passed\n")
+        else:
+            print("Failed\n")        
+
+        blade_blockage_outlet = self.n_r * self.t_trail / (2 * np.pi * np.sin(np.pi/2 - self.beta_5_rad))
+
+        print(f"Outlet blade metal blockage factor: {blade_blockage_outlet}")
+        if blade_blockage_outlet < 0.5:
+            print("Passed\n")
+        else:
+            print("Failed\n")        
 
     def make_stations(self):#use this for making an h-s diagram later
         """Could I technically make all variables equal to -1 and then
@@ -575,7 +637,7 @@ class nozzle:
         self.C_m3 = C_m3
         self.state_3 = state_3
         self.C_3 = C_3
-        self.alpha_3_rad = np.arctan(self.C_m3/self.C_theta3)
+        self.alpha_3_rad =np.pi/2 - np.abs(np.arctan(self.C_theta3/self.C_m3))
         self.alpha_3 = self.alpha_3_rad * 180 / np.pi
         print(self.alpha_3)
         self.d_3 = 2 * np.pi * self.r_3 / self.N_n # Pitch is usually s but since s is entropy I am using d
@@ -610,10 +672,10 @@ class nozzle:
 
         xcs = np.linspace(0,self.c,N_p_n)
         ycs = np.zeros((N_p_n,))
-        # print(np.tan(self.theta))
-        # print((self.ac - self.ac**2 - 3/16))
-        # print(1 + (4 * np.tan(self.theta))**2 * (self.ac - self.ac**2 - 3/16))
-        # print((4 * np.tan(self.theta)))
+        print(np.tan(self.theta))
+        print((self.ac - self.ac**2 - 3/16))
+        print(1 + (4 * np.tan(self.theta))**2 * (self.ac - self.ac**2 - 3/16))
+        print((4 * np.tan(self.theta)))
         bc = (np.sqrt(1 + (4 * np.tan(self.theta))**2 * (self.ac - self.ac**2 - 3/16))-1) / (4 * np.tan(self.theta))
         b = bc*self.c
         a = self.ac * self.c
@@ -739,20 +801,20 @@ class nozzle:
         throatx = [min_point[0],min_d_point[0]]
         throaty = [min_point[1],min_d_point[1]]
 
-        # thetas = np.linspace(0, 2 * np.pi, num = 100)
-        # circ = np.zeros((100,2))
-        # for i,theta in enumerate(thetas):
-        #     circ[i,0] = self.r_3 * (np.cos(theta))
-        #     circ[i,1] = self.r_3 * (np.sin(theta))
-        # plt.plot(throatx,throaty,color="r")
-        # plt.plot(circ[:,0],circ[:,1])
-        # plt.plot(blade_2_suc[:,0],blade_2_suc[:,1])
-        # plt.plot(blade_2_pres[:,0],blade_2_pres[:,1])
-        # plt.plot(blade_2_cam[:,0],blade_2_cam[:,1])
-        # plt.plot(rot_cam[:,0],rot_cam[:,1])
-        # plt.plot(rot_suc[:,0],rot_suc[:,1])
-        # plt.plot(rot_pres[:,0],rot_pres[:,1])
-        # plt.show()
+        thetas = np.linspace(0, 2 * np.pi, num = 100)
+        circ = np.zeros((100,2))
+        for i,theta in enumerate(thetas):
+            circ[i,0] = self.r_3 * (np.cos(theta))
+            circ[i,1] = self.r_3 * (np.sin(theta))
+        plt.plot(throatx,throaty,color="r")
+        plt.plot(circ[:,0],circ[:,1])
+        plt.plot(blade_2_suc[:,0],blade_2_suc[:,1])
+        plt.plot(blade_2_pres[:,0],blade_2_pres[:,1])
+        plt.plot(blade_2_cam[:,0],blade_2_cam[:,1])
+        plt.plot(rot_cam[:,0],rot_cam[:,1])
+        plt.plot(rot_suc[:,0],rot_suc[:,1])
+        plt.plot(rot_pres[:,0],rot_pres[:,1])
+        plt.show()
 
         return [rot_suc,rot_pres,rot_cam,min_d,min_point,min_d_point]
 
@@ -830,6 +892,7 @@ class nozzle:
         # plt.ylim([-0.1,0.1])
         # plt.show()
         pass
+
 def rotate_blade_point(point,gam_guess,c,r_3):
     rot_point = np.zeros((2,))
     rot_point[0] = (point[0] - c) * np.cos(gam_guess) + point[1] * np.sin(gam_guess)
@@ -891,101 +954,13 @@ def find_turb(init_cfe,init_turb):
             }
         new_static_turb_inputs = turb.static_turb_inputs
         new_turb = turbine(new_cfe,new_static_turb_inputs,new_dynamic_turb_inputs,i)
+    new_turb.turbine_feasibility_checks()
     return new_turb
 
 def find_stator(nozzle_inputs,turb):
     # gams = np.zeros(self.N_pb)
     pass
     
-
 if __name__ == "__main__":
     pass
-    # working_fluid_inputs = {
-    #     "mu" : "-0.00000000000144 *T**2 + 0.0000000169 *T+ 0.00000464",#[Pa-s] - Kinematic Viscosity
-    # }
 
-    # nozzle_inputs = {
-    #     "radius ratio" : 1.1,
-    #     "camber angle" : 0,
-    #     "ac" : 0.7,
-    #     "t_2c" : 0.025,
-    #     "t_3c" : 0.012,
-    #     "t_maxc" : 0.06,
-    #     "dc" : 0.4,
-    #     "sc" : 0.75
-    # }
-    # static_cfe_inputs = {
-    #     "inner_radius" : 0.056, #Channel inner radius [m]
-    #     "outer_radius" : 0.066, #Channel outer radius [m]
-    #     "length" : 0.94, #CFE channel length [m]
-    #     "rpm" : 7000, #CFE inner SiC cylinder revolutions per minute
-    #     "mass_flow" : 0.108, #CFE channel mass flow rate [kg s^-1]
-
-    #     "temp" : 450, #[K]
-    #     "press" : 12.5 #MPa - Turbine Inlet Pressure
-    # } 
-
-    # dynamic_turb_inputs = {
-    #     "PR_ts" : 4,
-    #     "eta_ts" : 0.9,
-    #     "h_0ss" : 0,
-    #     "N_s" : 0
-    # }
-    # opts = {
-    #     "dim" : "Y",
-    #     "prelim" : "y",
-    #     "geom" : "y",
-    #     "stations" : ["Y","y"]
-    # }
-    # test_cfe = CFE(static_cfe_inputs,dynamic_turb_inputs,1)
-
-    # init_turb = turbine(test_cfe,test_cfe.static_turb_inputs,dynamic_turb_inputs,1)
-
-    # test_turb = find_turb(test_cfe,init_turb)
-    # # test_turb.print_turbine(opts)
-    # # test_turb.make_hub_and_shroud()
-    # # test_turb.velocity_triangles()
-    # # test_turb.print_states()
-    # # """"prelim calcs"""
-
-    # """Checks:"""
-    # state_5ss = H2(s = test_turb.state_01.s,p = test_turb.state_5.p)
-    # eff_check = (test_turb.h_01 - test_turb.h_05) / (test_turb.h_01 - test_turb.state_5ss.h)
-    # print(test_turb.h_01 - test_turb.h_05)
-    # print(test_turb.deltah_0)
-    # print(eff_check)
-    # print()
-    # print("Mach No. Check:")
-    # M_inlet = test_turb.C_4/test_turb.state_4.a
-    # M_outlet = test_turb.C_5/test_turb.state_5.a
-    # print("Inlet Mach No.:",M_inlet)
-    # print("Outlet Mach No.",M_outlet)
-
-    # print()
-    # print("Inlet Relative Flow Angle:")
-    # W_theta4 = test_turb.C_theta4-test_turb.U_4
-    # W_m4=test_turb.C_m4
-    # beta_4 = np.arctan(W_theta4/W_m4)
-    # print(beta_4*180/np.pi)
-
-    # print()
-    # print("Axial Length Check:")
-    # print(1.5*test_turb.b_4,"<?=",test_turb.z_r)
-
-    # print()
-    # print("Outlet Meridional Velocity and Shroud Ratios:")
-    # vel_ratio1 = test_turb.C_m5/test_turb.U_4
-    # rad_ratio = test_turb.r_s5/test_turb.r_4
-    # print(vel_ratio1)
-    # print(rad_ratio)
-    
-
-    # print()
-    # print("Meridional Velocity Ratio:")
-    # MVR = test_turb.C_m5/test_turb.C_m4
-    # print(MVR)
-    
-    # print()
-    # print("Stage Reaction:")
-    # R = (test_turb.state_4.h-test_turb.state_5.h)/(test_turb.state_01.h-test_turb.state_05.h)
-    # print(R)
