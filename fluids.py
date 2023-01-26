@@ -17,12 +17,14 @@ class Table:
     def __init__(self, property, P: np.array, T: np.array, data: np.array):
         self.P_axis = P                     # pressure values corresponding to each column
         self.T_axis = T                     # temperature values corresponding to each row
+
         self.psplines = []                  # spline functions of pressure at tabulated temperatures
         self.tsplines = []                  # spline functions of temp at tabulated pressures
         self.psplines_Taxis = []            # temperature values corresponding to each spline f(P)
         self.tsplines_Paxis = []            # pressure values corresponding to each spline f(T)
         self.data = data                    # fluid property values
         self.tol = 1e-5                     # tolerance for removing duplicate solutions
+
 
         self.P_range = (min(self.P_axis), max(self.P_axis))     # pressure range of the table
         self.T_range = (min(self.T_axis), max(self.T_axis))     # temperature range of the table
@@ -54,7 +56,37 @@ class Table:
                 self.tsplines.append(CubicSpline(x, y, extrapolate=extra))
                 self.tsplines_Paxis.append(self.P_axis[j])
 
-    
+    def linTP(self, T1,P1):
+        row = np.nonzero(self.T_axis<=T1)[0][-1]
+        col = np.nonzero(self.P_axis<=P1)[0][-1]
+        Tlim = [self.T_axis[row], self.T_axis[row+1]]
+        Plim = [self.P_axis[col], self.P_axis[col+1]]
+        v0 = [[self.data[row,col], self.data[row,col+1]],
+                        [self.data[row+1,col], self.data[row+1,col+1]]]
+        v = np.array(v0)
+        rowX = (T1 - Tlim[0])/(Tlim[1]-Tlim[0])
+        colX = (P1 - Plim[0])/(Plim[1]-Plim[0])
+
+        row_diff = (v[1,0]-v[0,0])*(1-colX) + (v[1,1]-v[0,1])*colX
+        row_base = v[0,0]*(1-colX) + v[0,1] * colX
+        # print(T1,Tlim,P1,Plim)
+        # print(rowX, colX, row_diff, row_base)
+        # print("*"*20)
+        return row_diff * rowX + row_base
+
+    def linT(self, Pval, Yval):
+        col = np.nonzero(self.P_axis<=Pval)[0][-1]
+        Plim = [self.P_axis[col+1], self.P_axis[col]]
+        colX = (Pval - Plim[0])/(Plim[1]-Plim[0])
+        Ypts = self.data[:,col]*(1-colX) + self.data[:,col]*colX
+        for i in range(len(Ypts)-1):
+            if min(Ypts[i], Ypts[i+1])<=Yval<=max(Ypts[i], Ypts[i+1]):
+                break
+        else:
+            raise ValueError("Could not find temperature!")
+        YX = (Yval - Ypts[i])/(Ypts[i+1] - Ypts[i])
+        return self.T_axis[i] * (1-YX) + self.T_axis[i+1]*YX
+
     def check_range(self, P1=None, T1=None, Y1=None):
         "check if input property values are within range of table"
         self.check_single(P1, self.P_range, "Pressure")             # check pressure if provided
@@ -104,8 +136,7 @@ class Table:
     
     def t_func_p(self,Y1) -> PPoly:
         '''Get temperature as a function of pressure for given property value'''
-        self.check_range(Y1=Y1)             # ensure provided values are in table range
-        
+        self.check_range(Y1=Y1)             # ensure provided values are in table range        
         # solve for temperature at each pressure 
         T_points = []; P_points = []
         for i in range(len(self.tsplines)):
@@ -204,12 +235,11 @@ class FluidState:
                 raise ValueError(f"Property '{prop}' values do not exist for this fluid")
             elif (not prop.reversible) and (not prop.isaxis):
                 raise ValueError(f"Property '{prop}' cannot be used to solve for other properties")
-                
+        
 
         # Solve for both pressure and temperature if needed
         if not any([prop.isaxis for prop in keys]):
             self.double_solve(props)
-        
         if self.fluid.T in keys:
             self.properties[self.fluid.T] = props[self.fluid.T]
         if self.fluid.P in keys:
@@ -220,7 +250,7 @@ class FluidState:
             self.properties[self.fluid.P] = other_prop.table.get_p( T1=self.T, Y1=props[other_prop])
 
         if not self.fluid.T in keys:
-            # self for temperature
+            # solve for temperature
             other_prop = keys[keys is not self.fluid.P]
             self.properties[self.fluid.T] = other_prop.table.get_t( P1=self.P, Y1=props[other_prop])
         
@@ -230,13 +260,18 @@ class FluidState:
                 self.properties[pr] = props[pr]
             elif pr.known and (not pr.isaxis):
                 try:
-                    self.properties[pr] = pr.table.interp(P1=self.P, T1=self.T)
+                    if self.linear:
+                        self.properties[pr] = pr.table.linTP(P1=self.P, T1=self.T)
+                    else:
+                        self.properties[pr] = pr.table.interp(P1=self.P, T1=self.T)
                 except KeyError as err:
-                    # TODO: FIXME
-                    
                     print("FAILED:", err, pr.name, "P,T:", self.P, self.T)
                     self.properties[pr] = 0
-    
+    def linsolve(props):
+        keys = list(props.keys())
+        vals = list(props.values())
+        np.nonzero(keys[0].data>vals[0])
+
     def double_solve(self, props) -> "float, float":
         '''solve for both pressure and temperature as a function of other variables
         Should mostly only be called internally by other fluid state methods'''
@@ -339,7 +374,7 @@ class Fluid:
         else:
             raise AttributeError(f"'Fluid' object has no attribute '{__name}'")
     
-    def state(self, **kwargs: float) -> FluidState:
+    def state(self, linear=False, **kwargs: float) -> FluidState:
         '''Returns a fluid state given two fluid properties. Property values can then be indexed based upon the given state.
         Examples:
         `pump_exit = H2.state(P=5, T=800); print(pump_exit.h)`
@@ -362,7 +397,7 @@ class Fluid:
         dbp("Input state properties:", input_props)
         if len(input_props)!=2:
             raise ValueError("Input properties not recognized")
-        return FluidState(self, input_props)
+        return FluidState(self, input_props, linear=linear)
 
 
 dir = "H2 Property Tables\\Updated" # Directory of csv property files

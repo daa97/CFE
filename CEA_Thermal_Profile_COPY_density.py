@@ -26,7 +26,7 @@ class Cell:
     def __init__(self,cell_len,cell_temp,cell_radius,CFE_len,BCs,i,num_cells,press,m_b,mass_flow,omega): 
         self.press  = press*(10**6) #Pa
         self.cell_temp   = float(cell_temp) #FIXME - assign temp from temp profile
-        self.H2     = H2(P=self.press, T=self.cell_temp)
+        self.H2     = H2(P=self.press, T=self.cell_temp, linear=True)
         self.rho_H  = self.H2.rho
         self.Cp     = self.H2.Cp
         self.h      = self.H2.h
@@ -197,7 +197,8 @@ class CFE:
                 BCs = self.BC[1]
             else:
                 BCs = [0,"none"]
-            mesh.append(Cell(cell_len = self.cell_len,cell_temp = self.temp_profile[i],cell_radius=self.cell_center_radii[i],CFE_len = self.L,BCs = BCs,i=i,num_cells=self.num_cells,press=self.P_0,m_b = m_b,mass_flow = self.mass_flow,omega = self.rpm*2 *np.pi/60))
+            mesh.append(Cell(cell_len = self.cell_len,cell_temp = self.temp_profile[i],cell_radius=self.cell_center_radii[i],CFE_len = self.L,
+                        BCs = BCs,i=i,num_cells=self.num_cells,press=self.P_0,m_b = m_b,mass_flow = self.mass_flow,omega = self.rpm*2 *np.pi/60))
             if i == 0:
                 cell_0 = Cell(cell_len = self.cell_len,cell_temp = self.temp_profile[i],cell_radius=self.cell_center_radii[i],CFE_len = self.L,BCs = BCs,i=i,num_cells=self.num_cells,press=self.P_0,m_b = m_b,mass_flow = self.mass_flow,omega = self.rpm*2 *np.pi/60)
                 m_b = cell_0.m_b_o
@@ -270,14 +271,13 @@ def solve(init_CFE):
     maxres = res
     tol = 1e-6
     c = 0
-    xi = c
     old_CFE = init_CFE
     T_old = np.array(old_CFE.temp_profile).reshape(len(old_CFE.temp_profile),1)
     hist = np.zeros((init_CFE.num_cells-1,4))
     while  res > tol:
         if maxres == 100:
             maxres = res
-        status(f"xi: {xi}; Err: {res/tol:.2f}; Completion: {(1-np.log(res/tol)/np.log(maxres/tol))*100:.3f}%")
+        status(f"Err: {res/tol:.2f}; Completion: {(1-np.log(res/tol)/np.log(maxres/tol))*100:.3f}%")
         next_CFE = CFE(old_CFE.OR_U,old_CFE.annulus_t,old_CFE.L, old_CFE.MW,old_CFE.num_cells,T_old,old_CFE.mass_flow,old_CFE.rpm,old_CFE.P_0,old_CFE.BC,old_CFE.q_profile_input,iteration = old_CFE.it + 1,OG_power = old_CFE.OG_MW)
         T_new = sp.linalg.solve(next_CFE.matrix,next_CFE.b)
 
@@ -297,7 +297,7 @@ def solve(init_CFE):
             
     next_CFE = CFE(old_CFE.OR_U,old_CFE.annulus_t,old_CFE.L, old_CFE.MW,old_CFE.num_cells,T_old,old_CFE.mass_flow,old_CFE.rpm,old_CFE.P_0,old_CFE.BC,old_CFE.q_profile_input,iteration = old_CFE.it + 1,OG_power=old_CFE.OG_MW)
     xi = np.array([next_CFE.BC[0][0], next_CFE.P_0*1e6])
-    wall_h = H2(T=xi[0],P=xi[1]).h
+    wall_h = H2(T=xi[0],P=xi[1], linear=True).h
     e_to_H2 = next_CFE.mass_flow * (next_CFE.mesh[next_CFE.num_cells-1].h - wall_h)
 
     T_ghost = 2 * next_CFE.mesh[0].BC[0] - next_CFE.mesh[0].cell_temp #FIXME - Ghost Dirichlet BC is causing converging oscillations
@@ -364,12 +364,7 @@ def solve(init_CFE):
 
 if __name__ =="__main__":
 
-    PS2 = np.array([342.807, -6788.196, 53492.0865,-209274.7818, 406003.0282, -311150.776])
-    PS3 = np.array([6023.7734,-137714.2642, 1257534.5563, -5731600.8451, 13036404.1890, -11834090.4699])
-
     PS_data_1 =np.array([-4871942.2439, 6862317.227, -3852036.5529, 1077768.9162, -150353.3467, 8370.8935])
-    PS_data_2 = np.flip(PS2)
-    PS_data_3 = np.flip(PS3)
 
     v_f = "1.1 - 23.333 * cell_radius" #"2.16 - 48 * cell_radius"
     T_P = "1500 "#+ 1.5*(20/(r))"
@@ -382,7 +377,7 @@ if __name__ =="__main__":
     N = 7000
     mdot = .108
     L = .84
-    num_cells = 150
+    num_cells = 500
     D_1 = CFE(r2,r2-r1,L,7, num_cells, T_P, mdot, N, P_core,BCs,PS_data_1,OG_power=7)
 
     R_1 = solve(D_1)
