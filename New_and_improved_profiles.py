@@ -1,21 +1,10 @@
 import numpy as np
 np.set_printoptions(precision=1)
-from numpy.polynomial import Polynomial as poly
 import matplotlib.pyplot as plt
 import scipy as sp
-import scipy.interpolate as inter
-import csv
-import pprint
-import os
-from timeit import Timer
 import sys
 from fluids import H2
 
-#FIXME - Implement CUDA core solving of eqns
-# import numba
-# import pyculib as pcl
-
-#FIXME - General - replace large inputs with **kwargs
 
 class Face:
     def __init__(self,face_radius, CFE_len):
@@ -24,7 +13,7 @@ class Face:
 
 class Cell:
     def __init__(self,cell_len,cell_temp,cell_radius,CFE_len,BCs,i,num_cells,press,m_b,mass_flow,omega): 
-        self.press  = press*(10**6) #Pa
+        self.press  = press
         self.cell_temp   = float(cell_temp) #FIXME - assign temp from temp profile
         self.H2     = H2(P=self.press, T=self.cell_temp, linear=True)
         self.rho_H  = self.H2.rho
@@ -115,7 +104,7 @@ class Cell:
 
 
 class CFE:
-    def __init__(self,IR,annulus_t,length, power,num_cells,temp_profile,mass_flow,rpm,P_0,BC,q_tp,iteration=0,OG_power=0):
+    def __init__(self,IR,annulus_t,length, power,num_cells,temp_profile,mass_flow,rpm,P_0,BC,q_tp,iteration=0,OG_power=0,press_profile=None):
         self.it = iteration
         self.P_0 = P_0
         self.annulus_t = annulus_t
@@ -133,6 +122,10 @@ class CFE:
         self.temp_profile = self.create_temp_profile()
         self.BC = BC
         self.rpm = rpm
+        if self.it==0:
+            self.press_profile = [self.P_0] * self.num_cells
+        else:
+            self.press_profile = press_profile
         self.mesh = self.create_mesh()
         self.q_profile_input = q_tp
         self.q_tp = self.create_heat_profile()
@@ -141,6 +134,7 @@ class CFE:
         self.b = self.sys[1]
         self.q_tot = self.sys[2]
         self.X = self.sys[3]
+
 
 
     def create_cell_center_radii(self):
@@ -165,6 +159,8 @@ class CFE:
                 temp_profile.append(float(self.temp_profile_input[i]))
 
         return temp_profile
+    
+        
 
     def create_heat_profile(self):
         if type(self.q_profile_input) == str:
@@ -184,8 +180,19 @@ class CFE:
             q_t = np.polynomial.polynomial.polyval(np.multiply(100,self.cell_center_radii),np.multiply(self.MW/10,self.q_profile_input))
             cell_vol = [(100**3)*cell.cell_vol for cell in self.mesh]
             q_tp = np.multiply(q_t,cell_vol)
-         
         return q_tp
+
+    def find_press_profile(self):
+        preint = (self.rpm * 2*np.pi/60)**2 / self.OR_U
+        dPs = []
+        Ps = []
+        rho_total = lambda cell: cell.rho_U * (1-cell.void) + cell.rho_H * cell.void
+        for c in list(reversed(self.mesh)):
+            dP = c.cell_radius**2 * rho_total(c) * c.cell_len * preint
+            dPs.append(dP)
+            Ps.append(np.sum(dPs)+self.P_0)
+        
+        return list(reversed(Ps))
 
     def create_mesh(self):
         mesh = []
@@ -198,11 +205,10 @@ class CFE:
             else:
                 BCs = [0,"none"]
             mesh.append(Cell(cell_len = self.cell_len,cell_temp = self.temp_profile[i],cell_radius=self.cell_center_radii[i],CFE_len = self.L,
-                        BCs = BCs,i=i,num_cells=self.num_cells,press=self.P_0,m_b = m_b,mass_flow = self.mass_flow,omega = self.rpm*2 *np.pi/60))
+                        BCs = BCs,i=i,num_cells=self.num_cells,press=self.press_profile[i],m_b = m_b,mass_flow = self.mass_flow,omega = self.rpm*2 *np.pi/60))
             if i == 0:
-                cell_0 = Cell(cell_len = self.cell_len,cell_temp = self.temp_profile[i],cell_radius=self.cell_center_radii[i],CFE_len = self.L,BCs = BCs,i=i,num_cells=self.num_cells,press=self.P_0,m_b = m_b,mass_flow = self.mass_flow,omega = self.rpm*2 *np.pi/60)
+                cell_0 = Cell(cell_len = self.cell_len,cell_temp = self.temp_profile[i],cell_radius=self.cell_center_radii[i],CFE_len = self.L,BCs = BCs,i=i,num_cells=self.num_cells,press=self.press_profile[i],m_b = m_b,mass_flow = self.mass_flow,omega = self.rpm*2 *np.pi/60)
                 m_b = cell_0.m_b_o
-        
         return mesh
 
     def create_sys(self): #Since Pe < 2 uses central differencing for discretization of convection term and a pseudo-transient for stability
@@ -241,7 +247,7 @@ class CFE:
                         pass
                 elif cell.BC[1].lower() == 'neumann':
                     if i == 0:
-                        notavar = ''
+                        pass
                     else:
                         a_e_n = - (1-cell.void) * cell.k_U * cell.face_e.area / cell.cell_len
                         sys[i][i] = a_e_n + a_c
@@ -255,11 +261,8 @@ class CFE:
 
         if np.abs(self.OG_MW*(10**6) - q_tot) >1e-4:
             mod = (self.OG_MW*(10**6))/q_tot
-
             self.MW = self.MW * mod
-        else:
-            pass
-        # print(sys)
+
         return [sys,b,q_tot,X]
 
 def status(msg):
@@ -273,30 +276,24 @@ def solve(init_CFE):
     c = 0
     old_CFE = init_CFE
     T_old = np.array(old_CFE.temp_profile).reshape(len(old_CFE.temp_profile),1)
-    hist = np.zeros((init_CFE.num_cells-1,4))
     while  res > tol:
-        if maxres == 100:
+        if maxres == 100:           # get initial residual value
             maxres = res
-        status(f"Err: {res/tol:.2f}; Completion: {(1-np.log(res/tol)/np.log(maxres/tol))*100:.3f}%")
-        next_CFE = CFE(old_CFE.OR_U,old_CFE.annulus_t,old_CFE.L, old_CFE.MW,old_CFE.num_cells,T_old,old_CFE.mass_flow,old_CFE.rpm,old_CFE.P_0,old_CFE.BC,old_CFE.q_profile_input,iteration = old_CFE.it + 1,OG_power = old_CFE.OG_MW)
+        status(f"Err: {res/tol:.2f}; Completion: {(1-np.log(res/tol)/np.log(maxres/tol))*100:.3f}%")    # print progress 
+
+        next_CFE = CFE(old_CFE.OR_U, old_CFE.annulus_t, old_CFE.L, old_CFE.MW, old_CFE.num_cells, T_old,old_CFE.mass_flow,
+                        old_CFE.rpm, old_CFE.P_0,old_CFE.BC,old_CFE.q_profile_input,iteration = old_CFE.it + 1, OG_power = old_CFE.OG_MW, press_profile=old_CFE.find_press_profile())
         T_new = sp.linalg.solve(next_CFE.matrix,next_CFE.b)
-
-        #FIXME - Implement CUDA-core computation with pyculib
-        # desc = pcl.sparse.Sparse.matdescr()
-        # R_nnz = np.linspace(next_CFE.num_cells)
-        # nnz = pcl.sparse.Sparse.nnz('C',next_CFE.num_cells,next_CFE.num_cells,desc,next_CFE.matrix,R_nnz)
-        # print(nnz)
-
         res = np.amax(np.divide(np.absolute(T_new-T_old),T_old))    
 
         T_old = T_new[:]
         old_CFE = next_CFE
         c += 1
         if c > 10000:
-            res = 0          
+            res = 0
             
-    next_CFE = CFE(old_CFE.OR_U,old_CFE.annulus_t,old_CFE.L, old_CFE.MW,old_CFE.num_cells,T_old,old_CFE.mass_flow,old_CFE.rpm,old_CFE.P_0,old_CFE.BC,old_CFE.q_profile_input,iteration = old_CFE.it + 1,OG_power=old_CFE.OG_MW)
-    xi = np.array([next_CFE.BC[0][0], next_CFE.P_0*1e6])
+    next_CFE = CFE(old_CFE.OR_U,old_CFE.annulus_t, old_CFE.L, old_CFE.MW, old_CFE.num_cells, T_old,old_CFE.mass_flow, old_CFE.rpm, old_CFE.P_0, old_CFE.BC, old_CFE.q_profile_input,iteration = old_CFE.it + 1,OG_power=old_CFE.OG_MW, press_profile=old_CFE.find_press_profile())
+    xi = np.array([next_CFE.BC[0][0], next_CFE.P_0])
     wall_h = H2(T=xi[0],P=xi[1], linear=True).h
     e_to_H2 = next_CFE.mass_flow * (next_CFE.mesh[next_CFE.num_cells-1].h - wall_h)
 
@@ -354,10 +351,7 @@ def solve(init_CFE):
         
     Q_res = np.absolute(next_CFE.OG_MW*(10**6) - e_to_H2)
     mom_check = [mom,fld_mom,fld_arch,fld_drag,fld_cont,rho,fld_u]
-
-    #print(e_to_H2)
-    #print(c)
-    return [T_new,mom_check,next_CFE.X,Q_res,next_CFE.q_tot,rho_H]
+    return [T_new,mom_check,next_CFE.X,Q_res,next_CFE.q_tot,rho_H, next_CFE.press_profile]
 
             
 
@@ -370,21 +364,6 @@ if __name__ =="__main__":
     T_P = "1500 "#+ 1.5*(20/(r))"
     q_tp = "10000000 + 150**(100*r)"
     BCs = ([1494,"dirichlet"],[0,"neumann"])
-
-    from fluids import H2
-    import numpy as np
-    import matplotlib.pyplot as plt
-    import matplotlib as mpl
-    mpl.rc('font', family='Times New Roman',size="10")
-    mpl.rc('figure', figsize=(4.8,3.6))
-    mpl.rc('savefig', dpi=800)
-    mpl.rc('lines', linewidth=1.2)
-    mpl.rc('axes', grid=True)
-    mpl.rc('grid', linewidth=0.25)
-    mpl.rc('mathtext', fontset="dejavuserif")
-    mpl.rc('xtick.minor', visible=True, size=1.5, width=0.5)
-    mpl.rc('ytick.minor', visible=True, size=1.5, width=0.5)
-    plt.rcParams['figure.constrained_layout.use'] =  True
 
     base = {"P_core":10e6,
             "T_channel":450,
@@ -403,12 +382,13 @@ if __name__ =="__main__":
     # ******************************************
 
     vary = {"P_core":stdlim,
-            # "T_channel":stdlim,
+            "T_channel":stdlim,
             # "r5":stdlim,
             # "d56":[0.125, 2],
             "N":stdlim,
-            # "nu_s":stdlim,
-            "L_CFE":stdlim}
+            #"nu_s":stdlim
+            "L_CFE":stdlim
+            }
 
     labels = {"P_core":"core pressure $P_3$", 
             "T_channel":"channel temperature $T_1$",
@@ -451,7 +431,7 @@ if __name__ =="__main__":
             r2 = .045
             mdot = .108
             num_cells = 250
-            P_core = props["P_core"] / 1e6
+            P_core = props["P_core"]
             
             N = props["N"]
             L = props["L_CFE"]
@@ -463,7 +443,7 @@ if __name__ =="__main__":
             X_1 = R_1[2]
             QR_1 = R_1[3]
             Q_1 = R_1[4]
-
+            
             x_1 = np.array(D_1.cell_center_radii)
 
             temp = T_1
@@ -471,25 +451,11 @@ if __name__ =="__main__":
             void = np.array(X_1)
             fuel_density = np.array(M_1[5])
             prop_density = np.array(R_1[5])
+            P_profile = R_1[6]
 
             mix_density = fuel_density * (1 - void) + prop_density * void
-            np.save(f"PM_PressureDrop/density_CEA{key}_{i}.npy", mix_density)
-            np.save(f"PM_PressureDrop/radius_CEA{key}_{i}.npy", radius)
-
-
-
-    # for key in yvals:       # plot each line
-    #     plt.plot(yvals[key], label=labels[key])
-
-    # plt.legend()
-    # plt.xlim(0,2.2)
-
-    # # ******************************************
-    # # TODO: update figure name
-    # # ******************************************
-
-    # plt.savefig("FIGURENAME.svg")
-    # plt.show()
+            np.save(f"Better/d_{key}_{i}.npy", mix_density)
+            np.save(f"Better/r_{key}_{i}.npy", radius)
 
     print("Design 1 Max Temp:",np.amax(T_1))
     print("Design 1 Max Void:",np.amax(X_1))
@@ -505,3 +471,9 @@ if __name__ =="__main__":
     plt.legend()
     plt.show()
 
+    plt.title("Pressure")
+    plt.xlabel("Radius (m)")
+    plt.ylabel("Pressure (N/m^2)")
+    plt.plot(x_1, P_profile, label = "Uranium")
+    plt.legend()
+    plt.show()
