@@ -142,7 +142,6 @@ class CFE:
         self.q_tot = self.sys[2]
         self.X = self.sys[3]
 
-        self.R_H2 = 4124.2 
 
     def create_cell_center_radii(self):
         cell_center_radii = []
@@ -271,13 +270,14 @@ def solve(init_CFE):
     maxres = res
     tol = 1e-6
     c = 0
+    xi = c
     old_CFE = init_CFE
     T_old = np.array(old_CFE.temp_profile).reshape(len(old_CFE.temp_profile),1)
     hist = np.zeros((init_CFE.num_cells-1,4))
     while  res > tol:
         if maxres == 100:
             maxres = res
-        status(f"Err: {res/tol:.2f}; Completion: {(1-np.log(res/tol)/np.log(maxres/tol))*100:.3f}%")
+        status(f"xi: {xi}; Err: {res/tol:.2f}; Completion: {(1-np.log(res/tol)/np.log(maxres/tol))*100:.3f}%")
         next_CFE = CFE(old_CFE.OR_U,old_CFE.annulus_t,old_CFE.L, old_CFE.MW,old_CFE.num_cells,T_old,old_CFE.mass_flow,old_CFE.rpm,old_CFE.P_0,old_CFE.BC,old_CFE.q_profile_input,iteration = old_CFE.it + 1,OG_power = old_CFE.OG_MW)
         T_new = sp.linalg.solve(next_CFE.matrix,next_CFE.b)
 
@@ -296,8 +296,8 @@ def solve(init_CFE):
             res = 0          
             
     next_CFE = CFE(old_CFE.OR_U,old_CFE.annulus_t,old_CFE.L, old_CFE.MW,old_CFE.num_cells,T_old,old_CFE.mass_flow,old_CFE.rpm,old_CFE.P_0,old_CFE.BC,old_CFE.q_profile_input,iteration = old_CFE.it + 1,OG_power=old_CFE.OG_MW)
-    xi = np.array([next_CFE.BC[0][0], next_CFE.P_0/0.101325])
-    wall_h = H2(T=xi[0],P=xi[1])
+    xi = np.array([next_CFE.BC[0][0], next_CFE.P_0*1e6])
+    wall_h = H2(T=xi[0],P=xi[1]).h
     e_to_H2 = next_CFE.mass_flow * (next_CFE.mesh[next_CFE.num_cells-1].h - wall_h)
 
     T_ghost = 2 * next_CFE.mesh[0].BC[0] - next_CFE.mesh[0].cell_temp #FIXME - Ghost Dirichlet BC is causing converging oscillations
@@ -382,7 +382,7 @@ if __name__ =="__main__":
     N = 7000
     mdot = .108
     L = .84
-    num_cells = 100
+    num_cells = 150
     D_1 = CFE(r2,r2-r1,L,7, num_cells, T_P, mdot, N, P_core,BCs,PS_data_1,OG_power=7)
 
     R_1 = solve(D_1)
@@ -416,5 +416,5 @@ if __name__ =="__main__":
     plt.plot(x_1,prop_density,label = "Hydrogen")
     plt.plot(x_1,mix_density,label = "Mixture")
     plt.legend()
-    plt.show() 
+    plt.show()
 
