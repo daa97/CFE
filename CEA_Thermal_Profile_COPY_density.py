@@ -431,6 +431,7 @@ if __name__ =="__main__":
         yvals[key] = []
         i = 0                           # counter
         for x in xvals[key]:
+            print(f"RELATIVE PROPERTY VALUE {key}: {x}")
             props[key] = x * base[key]              # adjust single parameter
             L_total = props["L_CFE"] + 0.1          # compute total length
             if key=="P_core" or key=="T_core":      # check if core state needs adjustment
@@ -451,7 +452,7 @@ if __name__ =="__main__":
             r2 = .045
             mdot = .108
             num_cells = 4
-            P_core = props["P_core"]
+            P_core = props["P_core"] / 1e6
             
             N = props["N"]
             L = props["L_CFE"]
@@ -491,12 +492,6 @@ if __name__ =="__main__":
 
     plt.savefig("FIGURENAME.svg")
     plt.show()
-
-
-
-        
-
-    
 
     print("Design 1 Max Temp:",np.amax(T_1))
     print("Design 1 Max Void:",np.amax(X_1))
