@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import scipy as sp
 import sys
 from fluids import H2
+import multiprocessing as multi
 
 
 class Face:
@@ -410,6 +411,9 @@ if __name__ =="__main__":
         xvals[key] = np.arange(lim[0], lim[1]+1e-5, np.diff(lim)/n_pts)
         yvals[key] = []
         i = 0                           # counter
+        params = []
+        pool = multi.Pool(15)
+        CFEs = []
         for x in xvals[key]:
             print(f"\n\tRELATIVE PROPERTY VALUE {key}: {x}")
             props[key] = x * base[key]              # adjust single parameter
@@ -421,11 +425,6 @@ if __name__ =="__main__":
             omega = props["N"] * np.pi/30           # compute omega
             r6 = props["r5"] + props["d56"]         # compute r6
             i +=1
-
-            # ******************************************
-            # TODO: ADD YOUR CALCULATIONS FOR THE OUTPUT Y-AXIS VALUE BASED ON INPUTS
-            # TODO: SET y=<YOUR Y-VALUE PROPERTY>
-            # ******************************************
             
             r1 = .03
             r2 = .045
@@ -435,9 +434,12 @@ if __name__ =="__main__":
             
             N = props["N"]
             L = props["L_CFE"]
-            D_1 = CFE(r2,r2-r1,L,7, num_cells, T_P, mdot, N, P_core,BCs,PS_data_1,OG_power=7)
+            CFEs.append(CFE(r2,r2-r1,L,7, num_cells, T_P, mdot, N, P_core,BCs,PS_data_1,OG_power=7))
+        results = pool.map(solve, CFEs)
+        for index in range(len(results)):
+            R_1 = results[index]
+            D_1 = CFEs[index]
 
-            R_1 = solve(D_1)
             T_1 = R_1[0]
             M_1 = R_1[1]
             X_1 = R_1[2]
@@ -454,8 +456,8 @@ if __name__ =="__main__":
             P_profile = R_1[6]
 
             mix_density = fuel_density * (1 - void) + prop_density * void
-            np.save(f"Better/d_{key}_{i}.npy", mix_density)
-            np.save(f"Better/r_{key}_{i}.npy", radius)
+            np.save(f"Better/d2_{key}_{i}.npy", mix_density)
+            np.save(f"Better/r2_{key}_{i}.npy", radius)
 
     print("Design 1 Max Temp:",np.amax(T_1))
     print("Design 1 Max Void:",np.amax(X_1))

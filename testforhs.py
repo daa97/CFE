@@ -65,6 +65,7 @@ def find_turbine(static_inputs, dynamic_inputs):
     test_cfe = tdb.CFE(static_inputs,dynamic_inputs,1)
     init_turb = tdb.turbine(test_cfe,test_cfe.static_turb_inputs,dynamic_inputs,1)
     test_turb = tdb.find_turb(test_cfe,init_turb)
+    print(test_turb)
     return test_turb
 
 

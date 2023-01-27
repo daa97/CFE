@@ -16,7 +16,7 @@ mpl.rc('xtick.minor', visible=True, size=1.5, width=0.5)
 mpl.rc('ytick.minor', visible=True, size=1.5, width=0.5)
 plt.rcParams['figure.constrained_layout.use'] =  True
 
-def start_iter(props, P1):
+def turb_props(props, P1):
     L_total = props["L_CFE"] + 0.1          # compute total length
     r6 = props["r5"] + props["d56"]         # compute r6
     statics = tfhs.static_cfe_inputs.copy()
@@ -28,15 +28,15 @@ def start_iter(props, P1):
     statics["length"] = L_total
     dynamics["v_s"] = props["nu_s"]
     statics["press"] = P1 / 1e6
-    child = multi.Process(target=tfhs.find_turbine, args=(statics, dynamics))
-    child.start()
-    return child
+    
+    return statics, dynamics
 
 def iter_param(base, key, x, n):
-    children = []
     P1vals = np.load("P1.npz", allow_pickle=True)
     props = base.copy()             # reset all properties to base values
-    out = []
+    args = []
+    pool = multi.Pool(15)
+
     for j in range(len(x)):
         print("*"*10, f"Relative {key} = {x[j]:.2f} [{j}/{n}]", "*"*10)
         props[key] = x[j] * base[key]              # adjust single parameter
@@ -44,10 +44,12 @@ def iter_param(base, key, x, n):
             P1 = P1vals[key][j]
         else:
             P1 = P1vals["baseline"]
-        children.append(start_iter(props, P1))
-
-    for j in range(len(x)):
-        out.append(children[j].join())
+        args.append(turb_props(props, P1))
+    out = pool.starmap(tfhs.find_turbine, args)
+    for turb in out:
+        del turb.state_01.fluid
+    pool.close()
+    pool.join()
     return out
 
 
@@ -63,13 +65,13 @@ def parametric_sweep():
 
     stdlim = [0.5, 2]
 
-    vary = {"P_core":stdlim,
-            "T_channel":stdlim,
-            "r5":stdlim,
-            "d56":stdlim,
-            "N":stdlim,
-            "nu_s":stdlim,
-            "L_CFE":stdlim}
+    vary = {"P_core":stdlim}
+            # "T_channel":stdlim,
+            # "r5":stdlim,
+            # "d56":stdlim,
+            # "N":stdlim,
+            # "nu_s":stdlim,
+            # "L_CFE":stdlim}
 
     labels = {"P_core":"core pressure $P_3$", 
             "T_channel":"channel temperature $T_1$",
@@ -81,13 +83,15 @@ def parametric_sweep():
 
     yvals = dict()
     xvals = dict()
-    subs = dict()
-    n_pts = 50
+    n_pts = 10
     for key in vary:                    # iterate through properties we want to vary
         lim = vary[key]                 # relative property value limits
         xvals[key] = np.arange(lim[0], lim[1]+1e-5, np.diff(lim)/n_pts)
         yvals[key] = iter_param(base, key, xvals[key], n_pts)
     return yvals
-
-turbs = parametric_sweep()
-np.savez_compressed("turbine_sweep.npz", **turbs)
+if __name__=="__main__":
+    turbs = parametric_sweep()
+    print("Saving...")
+    print(turbs["P_core"][0])
+    np.savez_compressed("turbine_sweep.npz", **turbs)
+    print("Saved")
