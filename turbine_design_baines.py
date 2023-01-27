@@ -477,9 +477,6 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
                     if stn =="Y" or stn == "y":
                         print(strings[key][i])
 
-    def evaluate_turbine(self):
-        pass
-
     def print_states(self):
         print(self.state_1)
         print(self.state_2)
@@ -519,6 +516,9 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
     def make_hub_and_shroud(self):
         n = 5
         N_p = 20 # Number of points used to make the hub and shroud curves
+        beta_h5_aung = self.beta_h5 + np.pi/2
+        beta_s5_aung = self.beta_s5 + np.pi/2
+        beta_4_aung = np.pi/2
         """Hub curve"""
         if self.r_4-self.r_h5 > self.z_r:
 
@@ -575,7 +575,7 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
             shroud_points[j,0] = z
             shroud_points[j,1] = r
 
-        """Calculate meridian"""
+        """Calculate meridians"""
         m_h = np.zeros((N_p + N_p_L,1))
         m_s = np.zeros((N_p + N_p_L,1))
 
@@ -584,7 +584,7 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
                 m_h[i]=0
                 m_s[i]=0
             else:
-                m_h[i] = np.sqrt((hub_points[i,0]-hub_points[i-1,0])**2 + (hub_points[i,0]-hub_points[i-1,0])**2) + m_h[i-1]
+                m_h[i] = np.sqrt((hub_points[i,0]-hub_points[i-1,0])**2 + (hub_points[i,1]-hub_points[i-1,1])**2) + m_h[i-1]
                 m_s[i] = np.sqrt((shroud_points[i,0]-shroud_points[i-1,0])**2 + (shroud_points[i,1]-shroud_points[i-1,1])**2) + m_s[i-1]    
         m_h_mean = np.mean(m_h)    
         m_s_mean = np.mean(m_s)
@@ -594,11 +594,45 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
         plt.ylim([-.01, 0.06])
         plt.show()
 
+        """Hub camberline"""
+        theta_h = np.zeros((len(hub_points),))
+        theta_s = np.zeros((len(hub_points),))
+        norm_m_s = np.zeros((len(hub_points),))
+        norm_m_h = np.zeros((len(hub_points),))
+
+        theta_4 = m_h[-1] / 2 * (1/np.tan(np.pi/2) / self.r_4 + 1/np.tan(beta_s5_aung) / self.r_s5)
+
+        A = 1/np.tan(beta_s5_aung) / self.r_s5
+
+        B = 1/m_s[-1]**2 * (1/np.tan(np.pi/2)/self.r_4 - A)
+
+        C = - B / (2 * m_s[-1])
+
+        D = 1/np.tan(beta_h5_aung) / self.r_h5
+
+        E = (3 * theta_4/ m_h[-1]**2) - 1/m_h[-1] * (2 * D + 1/np.tan(np.pi/2) / self.r_4)
+
+        F = 1/m_h[-1]**2 * (D + 1/np.tan(np.pi/2) / self.r_4) - 2 * theta_4 / m_h[-1]**3
+        
+        for i,theta in enumerate(theta_h):
+            theta_s[i] = A * m_s[i] + B * m_s[i]**2 + C * m_s[i]**3
+            print("shroud",m_s[i])
+            print("hub",m_h[i])
+            theta_h[i] = D * m_s[i] + E * m_s[i]**2 + F * m_s[i]**3
+            norm_m_h[i] = m_h[i]/m_h[-1]
+            norm_m_s[i] = m_s[i]/m_s[-1]
+
+        plt.plot(norm_m_h,theta_h)
+        plt.plot(norm_m_s,theta_s)
+        plt.legend
+        plt.show()
+
     def calc_vel_ratio(self,dynamic_turb_inputs):
         if dynamic_turb_inputs["v_s"] == "default":
             return 0.737 * self.N_s**0.2
         else:
             return dynamic_turb_inputs["v_s"]
+    
 
 class nozzle:
     def __init__(self,nozzle_inputs,turb):

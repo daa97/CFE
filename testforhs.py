@@ -49,6 +49,7 @@ init_turb = tdb.turbine(test_cfe,test_cfe.static_turb_inputs,dynamic_turb_inputs
 
 test_turb = tdb.find_turb(test_cfe,init_turb)
 
+test_turb.make_hub_and_shroud()
 # test_turb.print_turbine(opts)
 
 # noz = tdb.nozzle(nozzle_inputs,test_turb)
