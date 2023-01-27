@@ -43,11 +43,132 @@ nozzle_inputs = {
         "setting angle" : 10/180*np.pi
     }
 
-test_cfe = tdb.CFE(static_cfe_inputs,dynamic_turb_inputs,1)
+from fluids import H2
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.rc('font', family='Times New Roman',size="10")
+mpl.rc('figure', figsize=(4.8,3.6))
+mpl.rc('savefig', dpi=800)
+mpl.rc('lines', linewidth=1.2)
+mpl.rc('axes', grid=True)
+mpl.rc('grid', linewidth=0.25)
+mpl.rc('mathtext', fontset="dejavuserif")
+mpl.rc('xtick.minor', visible=True, size=1.5, width=0.5)
+mpl.rc('ytick.minor', visible=True, size=1.5, width=0.5)
+plt.rcParams['figure.constrained_layout.use'] =  True
 
-init_turb = tdb.turbine(test_cfe,test_cfe.static_turb_inputs,dynamic_turb_inputs,1)
+base = {"P_core":10e6,
+        "T_channel":450,
+        "r5":56e-3,
+        "d56":8e-3,
+        "N":7000,
+        "nu_s":0.691,
+        "L_CFE":.84,
+        "T_core":3700}
 
-test_turb = tdb.find_turb(test_cfe,init_turb)
+stdlim = [0.5, 2]
+
+# ******************************************
+# TODO: if you don't want to plot vs a particular parameter, remove it from `vary`
+# TODO: if you want to plot a particular parameter over a range different from others, replace its limits in `vary`
+# ******************************************
+
+vary = {"P_core":stdlim,
+        "T_channel":stdlim,
+        "r5":stdlim,
+        "d56":[0.125, 2],
+        "N":stdlim,
+        "nu_s":stdlim,
+        "L_CFE":stdlim}
+
+labels = {"P_core":"core pressure $P_3$", 
+        "T_channel":"channel temperature $T_1$",
+        "r5":"case radius $r_5$",
+        "d56":"outer channel width $(r_6 - r_5)$",
+        "N":"CFE rotation rate $\omega$",
+        "nu_s":"turbine sp. speed $\\nu_s$",
+        "L_CFE":"CFE length $l$"}
+
+yvals = dict()
+xvals = dict()
+
+base_core = H2(P=base["P_core"], T=base["T_core"])      # speed code up by not calculating on every single loop
+static_cfe_inputs = {
+    "inner_radius" : 0.056, #Channel inner radius [m]
+    "outer_radius" : 0.064, #Channel outer radius [m]
+    "length" : 0.94, #CFE channel length [m]
+    "rpm" : 7000, #CFE inner SiC cylinder revolutions per minute
+    "mass_flow" : 0.108, #CFE channel mass flow rate [kg s^-1]
+
+    "temp" : 450, #[K]
+    "press" : 13.1135 #MPa - Turbine Inlet Pressure
+} 
+
+dynamic_turb_inputs = {
+    "PR_ts" : 1.0008,
+    "eta_ts" : 0.9,
+    "h_0ss" : 0,
+    "N_s" : 0,
+    "v_s" : 0.693
+}
+for key in vary:                    # iterate through properties we want to vary
+    props = base.copy()             # reset all properties to base values
+    lim = vary[key]                 # relative property value limits
+    n_pts = 50                      # number of x-value points to plot to form a smooth curve
+    xvals[key] = np.arange(lim[0], lim[1]+1e-5, np.diff(lim)/n_pts)
+    
+    print(xvals)
+    yvals[key] = []
+    P1vals = np.load("P1.npz")
+    for j in range(len(xvals[key])):
+        props[key] = xvals[key][j] * base[key]              # adjust single parameter
+        L_total = props["L_CFE"] + 0.1          # compute total length
+        if key=="P_core" or key=="T_core":      # check if core state needs adjustment
+            core = H2(P=props["P_core"], T=props["T_core"])
+        else:
+            core = base_core
+        omega = props["N"] * np.pi/30           # compute omega
+        r6 = props["r5"] + props["d56"]         # compute r6
+        if key in P1vals.keys():
+            P1 = P1vals[key][j]
+        else:
+            pass
+        
+        statics = static_cfe_inputs.copy()
+        dynamics = dynamic_turb_inputs.copy()
+        statics["inner_radius"] = props["r5"]
+        statics["outer_radius"] = r6
+        statics["rpm"] = props["N"]
+        statics["temp"] = props["T_channel"]
+        statics["length"] = L_total
+        dynamics["v_s"] = props["nu_s"]
+        statics["press"] = P1
+        test_cfe = tdb.CFE(statics,dynamics,1)
+        init_turb = tdb.turbine(test_cfe,test_cfe.static_turb_inputs,dynamics,1)
+        test_turb = tdb.find_turb(test_cfe,init_turb)
+        y=test_turb
+        # ******************************************
+        # TODO: ADD YOUR CALCULATIONS FOR THE OUTPUT Y-AXIS VALUE BASED ON INPUTS
+        # TODO: SET y=<YOUR Y-VALUE PROPERTY>
+        # ******************************************
+        
+        yvals[key].append(y)
+
+
+for key in yvals:       # plot each line
+    plt.plot(yvals[key], label=labels[key])
+
+plt.legend()
+plt.xlim(0,2.2)
+
+# ******************************************
+# TODO: update figure name
+# ******************************************
+
+plt.savefig("FIGURENAME.svg")
+plt.show()
+
 
 test_turb.make_hub_and_shroud()
 # test_turb.print_turbine(opts)
