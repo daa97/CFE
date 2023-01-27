@@ -201,7 +201,10 @@ class FluidProperty:
     def reformat(self, string):
         '''Formats string to avoid case sensitivity'''
         return string.upper().strip().replace(" ", "_")
-
+    def __getstate__(self): 
+        return self.__dict__
+    def __setstate__(self, d):
+        self.__dict__.update(d)
 
     def __getattr__(self, __name: str):
         '''allows direct access of table attributes from property'''
@@ -221,6 +224,11 @@ class FluidState:
         self.fluid = fluid # Corresponding fluid with property tables
         self.linear = linear
         self.solve_properties(props) # solve for fluid properties
+    def __getstate__(self): 
+        return self.__dict__
+    def __setstate__(self, d):
+        self.__dict__.update(d)
+
     def __getattr__(self, __name: str):
         '''overrides default FluidState.attribute behavior for unrecognized attribute names. Allows parsing of any fluid property names desired'''
         for p in self.fluid.properties:
@@ -366,7 +374,10 @@ class Fluid:
     
     def __call__(self, **kwargs: float) -> FluidState:
         return self.state(**kwargs)
-
+    def __getstate__(self): 
+        return self.__dict__
+    def __setstate__(self, d):
+        self.__dict__.update(d)
     def __getattr__(self, __name: str):
         for p in self.properties:
             if p.knownas(__name):
