@@ -33,7 +33,7 @@ class CFE:
         self.P_in = static_cfe_inputs["press"] * 1e6
         self.P_out = static_cfe_inputs["press"] / dynamic_turb_inputs["PR_ts"] * 1e6
         # print("CFE Outlet Pressure:",self.P_out/1e6,"[MPa]")
-        self.cfe_state = H2(P=self.P_in,T = self.T_in)
+        self.cfe_state = H2(p=self.P_in,t = self.T_in)
         self.gamma = self.cfe_state.gamma
         T = self.T_in
         self.mu = self.cfe_state.mu
@@ -56,10 +56,15 @@ class CFE:
         st_turb_inputs = self.calc_static_turb_inputs()
         # print(55 *static_cfe_inputs["rpm"]/7000) # checking the bearing resistance relative to rpm
         self.static_turb_inputs = {
+            "R_i" : self.R_i,
+            "R_o" : self.R_o,
             "T_01" : st_turb_inputs[0],
             "C_m1" : st_turb_inputs[1],
             "C_theta1" : st_turb_inputs[2],
-            "P_01" : st_turb_inputs[3]
+            "P_01" : st_turb_inputs[3],
+            "work_rate" : self.work_rate,
+            "mass_flow" : self.mass_flow,
+            "omega" : self.omega
         }
 
     def calc_mass(self):
@@ -141,7 +146,6 @@ class station:
         pass
 class whitfield_turbine:
     def __init__(self,CFE,static_turb_inputs,dynamic_turb_inputs,i):
-        self.CFE = CFE
         self.i = i
         self.state_01 = H2(t=static_turb_inputs["T_01"], p = self.CFE.P_in)
         self.T_01 = static_turb_inputs["T_01"]
@@ -151,7 +155,7 @@ class whitfield_turbine:
         self.T_03 = (1 - self.S) * self.T_01
 
 class turbine:
-    def __init__(self,CFE,static_turb_inputs,dynamic_turb_inputs,i):
+    def __init__(self,static_turb_inputs,dynamic_turb_inputs,i):
         self.CFE = CFE
         self.static_turb_inputs = static_turb_inputs
         self.i = i
@@ -162,15 +166,18 @@ class turbine:
         #self.eta_tt_guess = dynamic_turb_inputs["total to total efficiency guess"]
         self.eta_ts_guess = dynamic_turb_inputs["eta_ts"]
         self.PR_ts = dynamic_turb_inputs["PR_ts"]
+        self.work_rate = static_turb_inputs["work_rate"]
+        self.mass_flow = static_turb_inputs["mass_flow"]
+        self.omega = static_turb_inputs["omega"]
 
-        self.deltah_0 = self.CFE.work_rate/self.CFE.mass_flow
+        self.deltah_0 = self.work_rate/self.mass_flow
         self.T_01 = static_turb_inputs["T_01"]
         self.state_01 = H2(t=self.T_01, p = static_turb_inputs["P_01"])
         self.h_01 = self.state_01.h
         self.h_05 = self.state_01.h - self.deltah_0
         self.state_05 = H2(h = self.h_05, P=static_turb_inputs["P_01"]/self.PR_ts)
         self.epsilon_b = 0.4e-3
-        self.Q = self.CFE.mass_flow / self.state_05.rho
+        self.Q = self.mass_flow / self.state_05.rho
         # print(self.state_01)
         # print(self.state_05)
         if self.i == 1:
@@ -182,7 +189,7 @@ class turbine:
             self.eta_ts = dynamic_turb_inputs["eta_ts"]
             self.PR_ts = dynamic_turb_inputs["PR_ts"]
             self.h_0ss = dynamic_turb_inputs["h_0ss"]
-            self.N_s = self.CFE.omega * np.sqrt(self.Q) / (self.h_0ss**(3/4))
+            self.N_s = self.omega * np.sqrt(self.Q) / (self.h_0ss**(3/4))
 
         """Preliminary Calcs: Rotor"""
 
@@ -191,10 +198,10 @@ class turbine:
         self.C_0 = np.sqrt(2 * self.h_0ss)
         """Total and static states at station 4"""
         self.U_4 = self.C_0 * self.v_s # Blade spped [m/s]
-        self.r_4 = self.U_4/self.CFE.omega # Rotor inlet radius [m]
+        self.r_4 = self.U_4/self.omega # Rotor inlet radius [m]
         self.alpha_4 = 90 - 1* (10.8 + 14.2*self.N_s**2) # Rotor inlet angle [degrees]
         self.alpha_4_rad = self.alpha_4 / 180 * np.pi # Rotor inlet angle [radians]
-        self.P_04 = self.CFE.P_in - self.state_01.rho * self.h_0ss*(1-self.eta_ts)/4 # Rotor inlet total pressure [Pa]
+        self.P_04 = self.state_01.p - self.state_01.rho * self.h_0ss*(1-self.eta_ts)/4 # Rotor inlet total pressure [Pa]
         self.C_theta4 = self.U_4 * self.eta_ts / (2*self.v_s**2) # Rotor inlet tangiential velocity [m/s]
         self.C_m4 = self.C_theta4 / np.tan(self.alpha_4*np.pi/180)
         self.C_4 = np.sqrt(self.C_m4**2 + self.C_theta4**2)
@@ -208,7 +215,7 @@ class turbine:
         self.s_4 = self.state_04.s
         self.h_4 = self.h_04 - 0.5 * self.C_4**2  
         self.state_4 = H2(s=self.s_4,h=self.h_4)
-        self.b_4 = self.CFE.mass_flow / (2*np.pi*self.r_4*self.state_4.rho*self.C_m4)
+        self.b_4 = self.mass_flow / (2*np.pi*self.r_4*self.state_4.rho*self.C_m4)
         self.A_4 = 2 * np.pi * self.r_4 *self.b_4
         self.M_4 = self.C_4 / self.state_4.a
         self.M_4_rel = self.W_4 / self.state_4.a
@@ -221,11 +228,11 @@ class turbine:
         self.h_5 = self.h_05 - 0.5*self.C_5**2
         self.s_5 = self.state_05.s
         self.state_5 = H2(h=self.h_5,s=self.s_5)
-        self.A_5 = self.CFE.mass_flow/(self.state_5.rho * self.C_m5)
+        self.A_5 = self.mass_flow/(self.state_5.rho * self.C_m5)
         self.r_s5 = np.sqrt((self.A_5/np.pi)+self.r_h5**2) #Rotor outlet shroud radius
         self.r_5 = (self.r_s5+self.r_h5)/2 #Rotor outlet mean radius
         self.b_5 = self.r_s5-self.r_h5 #Rotor outlet blade height
-        self.U_5 = self.CFE.omega * self.r_5
+        self.U_5 = self.omega * self.r_5
         self.W_m5 = self.C_m5
         self.W_theta5 = - self.U_5
         self.W_5 = np.sqrt(self.W_m5**2 + self.W_theta5**2)
@@ -235,8 +242,10 @@ class turbine:
         self.state_5ss = H2(s = self.state_01.s,p = self.state_5.p)
         self.M_5 = self.C_5/ self.state_5.a
         self.M_5_rel = self.W_5 / self.state_5.a
-        self.beta_s5 = np.arctan(self.r_5/self.r_s5 * self.beta_5_rad) * 180 / np.pi
-        self.beta_h5 = np.arctan(self.r_5/self.r_h5 * self.beta_5_rad) * 180 / np.pi
+        self.beta_s5_rad = np.arctan(self.r_5/self.r_s5 * np.tan(self.beta_5_rad))
+        self.beta_s5 = self.beta_s5_rad * 180 / np.pi
+        self.beta_h5_rad = np.arctan(self.r_5/self.r_h5 * np.tan(self.beta_5_rad))
+        self.beta_h5 = self.beta_h5_rad * 180 / np.pi
 
         self.z_r = 1.5 * (self.b_5)
         self.n_r = np.round(np.pi/30*(110-self.alpha_4)*np.tan(self.alpha_4*np.pi/180)) #Glassman 1972
@@ -247,7 +256,7 @@ class turbine:
         self.t_lead = 0.04 * self.r_4
         self.t_trail = 0.02 * self.r_4
         """Preliminary Calcs: The Bowl"""
-        self.r_1o = self.CFE.R_o
+        self.r_1o = static_turb_inputs["R_o"]
         self.r_1i = self.r_1o - self.b_4
         self.r_cbo = self.r_1o - self.r_3
         self.r_cbi = self.r_1i - self.r_3
@@ -256,10 +265,11 @@ class turbine:
 
         """Efficiency Correction Calulations"""
         self.h_loss = self.calc_losses()
-        self.eta_ts_loss = self.deltah_0/(self.deltah_0 + self.h_loss)
+        self.eta_ts_loss = self.deltah_0/(self.deltah_0 + self.h_loss[0])
         self.flow_coef = self.C_m5 / self.U_4
         self.load_coef = self.deltah_0 / (self.U_4**2)
         self.D_s = 2 * self.r_4 * (self.h_0ss)**0.25 / self.Q**0.5
+        rotor_eff = (self.state_04.h - self.state_05.h) / (self.state_04.h - self.state_5ss.h)
         
     def turbine_feasibility_checks(self):
         results = []
@@ -340,7 +350,7 @@ class turbine:
 
     def iterate_eta_ts(self):
         rho_05 = self.state_05.rho
-        Q = self.CFE.mass_flow / rho_05
+        Q = self.mass_flow / rho_05
         eta_ts = 0
         """Eta Iteration"""
         while round(eta_ts,4) != round(self.eta_ts_guess,4):
@@ -349,14 +359,14 @@ class turbine:
 
             h_0ss = self.deltah_0 / self.eta_ts_guess
             
-            N_s = self.CFE.omega * np.sqrt(Q) / (h_0ss**(3/4))
+            N_s = self.omega * np.sqrt(Q) / (h_0ss**(3/4))
 
             eta_ts = 0.87 - 1.07 * (N_s - 0.55)**2 - 0.5 * (N_s - 0.55)**3
             # print("Calculated eta:", eta_ts)
             # print("Previous eta",self.eta_ts_guess)
 
         h_0ss = self.deltah_0 / eta_ts
-        N_s = self.CFE.omega * np.sqrt(Q) / (h_0ss**(3/4))
+        N_s = self.omega * np.sqrt(Q) / (h_0ss**(3/4))
         return [eta_ts,h_0ss,N_s]
     
     def calc_losses(self):
@@ -407,7 +417,7 @@ class turbine:
         # print("Passage Losses:",L_p)
 
         """Windage Losses"""
-        L_w = K_f * (rho_avg * self.U_4**3 * self.r_4**2) / (2 * self.CFE.mass_flow * self.W_5**2)
+        L_w = K_f * (rho_avg * self.U_4**3 * self.r_4**2) / (2 * self.mass_flow * self.W_5**2)
         # print("Windage Losses:",L_w)
 
         """Trailing Edge Losses"""
@@ -427,13 +437,15 @@ class turbine:
         L_n = self.h_0ss * (1 - 0.975)
 
         h_losses = L_e + L_i  + L_p + L_w + L_t + L_n
-        return h_losses
+        # print(L_i/self.h_0ss,L_p/self.h_0ss,L_t/self.h_0ss,L_e/self.h_0ss,L_n/self.h_0ss,L_w/self.h_0ss)
+        return [h_losses,L_e,L_i,L_p,L_w,L_t,L_n]
 
     def print_turbine(self,opts):
         turb_title = f'Turbine iteration: {self.i}\n\n'
         prelim_title = f'Preliminary Calculated Values:\n\n'
         dim_title = f'Non-dimensional Parameters:\n\n'
         geom_title = f'Turbine Geometry:\n\n'
+        loss_title = f'Enthalpy Losses:\n\n'
         stn1_title = f'Station 1:\n\n'
         stn2_title = f'Station 2:\n\n'
         stn3_title = f'Station 3:\n\n'
@@ -441,6 +453,15 @@ class turbine:
         stn5_title = f'Station 5:\n\n'
         stn6_title = f'Station 6:\n\n'
 
+        loss_str =f' \
+Exit losses: {self.h_loss[1]/self.h_0ss}\n \
+Incidence losses: {self.h_loss[2]/self.h_0ss}\n \
+Passage losses: {self.h_loss[3]/self.h_0ss}\n \
+Windage losses: {self.h_loss[4]/self.h_0ss}\n \
+Trailing edge losses: {self.h_loss[5]/self.h_0ss}\n \
+Nozzle losses: {self.h_loss[6]/self.h_0ss}\n \
+Total losses: {self.h_loss[0]/self.h_0ss}\n \
+    '
         dim_str = f' \
 Total-to-static efficicency: {self.eta_ts}\n \
 Stage loading: {self.load_coef}\n \
@@ -501,7 +522,8 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
             "dim" : dim_title + dim_str,
             "prelim" : prelim_title + prelim_str,
             "geom" : geom_title + geom_str,
-            "stations" : [stn4_title + stn4_str,stn5_title + stn5_str]
+            "stations" : [stn4_title + stn4_str,stn5_title + stn5_str],
+            "losses" : loss_title + loss_str
         }
         
         for key in opts:
@@ -551,9 +573,7 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
     def make_hub_and_shroud(self):
         n = 5
         N_p = 20 # Number of points used to make the hub and shroud curves
-        beta_h5_aung = self.beta_h5 + np.pi/2
-        beta_s5_aung = self.beta_s5 + np.pi/2
-        beta_4_aung = np.pi/2
+
         """Hub curve"""
         if self.r_4-self.r_h5 > self.z_r:
 
@@ -612,54 +632,133 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
 
         """Calculate meridians"""
         m_h = np.zeros((N_p + N_p_L,1))
+        hub = np.concatenate((m_h,hub_points),axis=1)
         m_s = np.zeros((N_p + N_p_L,1))
+        shroud = np.concatenate((m_h,shroud_points),axis=1)
 
         for i in range(len(m_h)):
             if i==0:
-                m_h[i]=0
-                m_s[i]=0
+                hub[i,0]=0
+                shroud[i,0]=0
             else:
-                m_h[i] = np.sqrt((hub_points[i,0]-hub_points[i-1,0])**2 + (hub_points[i,1]-hub_points[i-1,1])**2) + m_h[i-1]
-                m_s[i] = np.sqrt((shroud_points[i,0]-shroud_points[i-1,0])**2 + (shroud_points[i,1]-shroud_points[i-1,1])**2) + m_s[i-1]    
-        m_h_mean = np.mean(m_h)    
-        m_s_mean = np.mean(m_s)
-        print(m_h_mean,m_s_mean)
+                hub[i,0] = np.sqrt((hub_points[i,0]-hub_points[i-1,0])**2 + (hub_points[i,1]-hub_points[i-1,1])**2) + hub[i-1,0]
+                shroud[i,0] = np.sqrt((shroud_points[i,0]-shroud_points[i-1,0])**2 + (shroud_points[i,1]-shroud_points[i-1,1])**2) + shroud[i-1,0]    
+
+        m_h = np.linspace(0,hub[-1,0],len(hub))
+        m_s = np.linspace(0,shroud[-1,0],len(hub))
+        hub_equal_coords = np.zeros((len(m_h),2))
+        shroud_equal_coords = np.zeros((len(m_h),2))
+
+        f_h = inter.interp1d(hub[:,0],hub[:,1:3],axis=0)
+        f_s = inter.interp1d(shroud[:,0],shroud[:,1:3],axis=0)
+        mid = np.zeros((len(m_h),3))
+
+
+        for i,m in enumerate(m_h):
+            if i==0:
+                hub_equal_coords[i,0] = hub[0,1]
+                hub_equal_coords[i,1] = hub[0,2]
+                shroud_equal_coords[i,0] = shroud[0,1]
+                shroud_equal_coords[i,1] = shroud[0,2]
+
+                dx = (hub_equal_coords[i,0] - shroud_equal_coords[i,0])/2
+                dy = (shroud_equal_coords[i,1] - hub_equal_coords[i,1])/2
+                mid[i,1] = hub_equal_coords[i,0] - dx
+                mid[i,2] = hub_equal_coords[i,1] + dy
+                mid[i,0] = 0
+
+            else:
+                hub_equal_coords[i,0] = f_h(m_h[i])[0]
+                hub_equal_coords[i,1] = f_h(m_h[i])[1]
+                shroud_equal_coords[i,0] = f_s(m_s[i])[0]
+                shroud_equal_coords[i,1] = f_s(m_s[i])[1]
+
+                dx = (hub_equal_coords[i,0] - shroud_equal_coords[i,0])/2
+                dy = (shroud_equal_coords[i,1] - hub_equal_coords[i,1])/2
+                mid[i,1] = hub_equal_coords[i,0] - dx
+                mid[i,2] = hub_equal_coords[i,1] + dy
+                mid[i,0] = np.sqrt((mid[i,1]-mid[i-1,1])**2 + (mid[i,2]-mid[i-1,2])**2) + mid[i-1,0]
+
+            plt.plot([hub_equal_coords[i,0],shroud_equal_coords[i,0]],[hub_equal_coords[i,1],shroud_equal_coords[i,1]])
+        print(mid)
+        plt.plot(mid[:,1],mid[:,2])
         plt.plot(shroud_points[:,0],shroud_points[:,1])
         plt.xlim([-.01, 0.06])
         plt.ylim([-.01, 0.06])
         plt.show()
 
-        """Hub camberline"""
+        """Hub and shroud wrap angles"""
+        beta_h5_aung = np.pi/2 - np.abs(self.beta_h5_rad)
+        beta_s5_aung = np.pi/2 - np.abs(self.beta_s5_rad)
+        beta_4_aung = np.pi/2
+        cotbeta4 = 1/np.tan(beta_4_aung)
+        cotbetas5 = 1/np.tan(beta_s5_aung)
+        cotbetah5 = 1/np.tan(beta_h5_aung)
+        print(beta_4_aung)
+        print(beta_s5_aung)
+        print(beta_h5_aung)
+        print(cotbeta4)
+        print(cotbetas5)
+        print(cotbetah5)
+
+        m_4 = mid[-1,0]
+
         theta_h = np.zeros((len(hub_points),))
         theta_s = np.zeros((len(hub_points),))
-        norm_m_s = np.zeros((len(hub_points),))
+        norm_m = np.zeros((len(hub_points),))
         norm_m_h = np.zeros((len(hub_points),))
+        m = mid[:,0]
+        # cot_beta4 = 1/np.tan()
+        theta_4 = (m_4 / 2) * (cotbeta4 / self.r_4 + cotbetas5 / self.r_s5)
+        print(theta_4*180/np.pi)
 
-        theta_4 = m_h[-1] / 2 * (1/np.tan(np.pi/2) / self.r_4 + 1/np.tan(beta_s5_aung) / self.r_s5)
+        A = cotbetas5 / self.r_s5
 
-        A = 1/np.tan(beta_s5_aung) / self.r_s5
+        B = m_4**(-2) * (cotbeta4/self.r_4 - A)
 
-        B = 1/m_s[-1]**2 * (1/np.tan(np.pi/2)/self.r_4 - A)
+        C = - B / (2 * m_4)
 
-        C = - B / (2 * m_s[-1])
+        D = cotbetah5 / self.r_h5
 
-        D = 1/np.tan(beta_h5_aung) / self.r_h5
+        E = (3 * theta_4/ m_4**2) - 1/m_4 * (2 * D + cotbeta4 / self.r_4)
 
-        E = (3 * theta_4/ m_h[-1]**2) - 1/m_h[-1] * (2 * D + 1/np.tan(np.pi/2) / self.r_4)
-
-        F = 1/m_h[-1]**2 * (D + 1/np.tan(np.pi/2) / self.r_4) - 2 * theta_4 / m_h[-1]**3
-        
+        F = m_4**(-2) * (D + cotbeta4 / self.r_4) - 2 * theta_4 / m_4**3
+        print(A,B,C,D,E,F)
         for i,theta in enumerate(theta_h):
-            theta_s[i] = A * m_s[i] + B * m_s[i]**2 + C * m_s[i]**3
-            print("shroud",m_s[i])
-            print("hub",m_h[i])
-            theta_h[i] = D * m_s[i] + E * m_s[i]**2 + F * m_s[i]**3
-            norm_m_h[i] = m_h[i]/m_h[-1]
-            norm_m_s[i] = m_s[i]/m_s[-1]
 
-        plt.plot(norm_m_h,theta_h)
-        plt.plot(norm_m_s,theta_s)
-        plt.legend
+            theta_s[i] = (A * m[i] + B * m[i]**3 + C * m[i]**4) 
+            # print("shroud",m_s[i])
+            # print("hub",m_h[i])
+            theta_h[i] = (D * m[i] + E * m[i]**2 + F * m[i]**3) 
+            norm_m[i] = mid[i,0]/m_4
+
+        beta_h = np.zeros(len(theta_h),)
+        print(beta_h)
+        beta_s = np.zeros(len(theta_h),)
+        for i,beta in enumerate(beta_h):
+            if i==0:
+                beta_h[i] = beta_h5_aung * 180/np.pi
+                beta_s[i] = beta_s5_aung * 180/np.pi
+            if i==1:
+                pass
+            else: 
+                beta_h[i-1] = hub[i-1,2] * (theta_h[i] - theta_h[i-2]) / (mid[i,0]-mid[i-2,0]) * 180/np.pi
+                beta_s[i-1] = shroud[i-1,2] * (theta_s[i] - theta_s[i-2]) / (mid[i,0]-mid[i-2,0]) * 180/np.pi
+        beta_h[-1] = beta_4_aung * 180/np.pi
+        beta_s[-1] = beta_4_aung * 180/np.pi
+        # print("hub meridion")
+        # print(m_h)
+        # print("shroud meridion")
+        # print(m_s)
+        # print("Hub wrap angle")
+        # print(theta_h)
+        # print("Shroud wrap angle")
+        # print(theta_s)
+        plt.plot(norm_m,theta_h,marker=".")
+        plt.plot(norm_m,theta_s,marker=".")
+        plt.show()
+        plt.plot(norm_m,beta_h)
+        plt.plot(norm_m,beta_s)
         plt.show()
 
     def calc_vel_ratio(self,dynamic_turb_inputs):
@@ -667,7 +766,6 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
             return 0.737 * self.N_s**0.2
         else:
             return dynamic_turb_inputs["v_s"]
-    
 
 class nozzle:
     def __init__(self,nozzle_inputs,turb):
@@ -1022,7 +1120,7 @@ def find_turb(init_cfe,init_turb):
             "v_s" : turb.v_s
             }
         new_static_turb_inputs = turb.static_turb_inputs
-        new_turb = turbine(new_cfe,new_static_turb_inputs,new_dynamic_turb_inputs,i)
+        new_turb = turbine(new_static_turb_inputs,new_dynamic_turb_inputs,i)
     new_turb.turbine_feasibility_checks()
     return new_turb
 

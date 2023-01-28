@@ -14,7 +14,8 @@ opts = {
     "dim" : "Y",
     "prelim" : "y",
     "geom" : "y",
-    "stations" : ["Y","y"]
+    "stations" : ["Y","y"],
+    "losses" : "Y"
 }
 
 nozzle_inputs = {
