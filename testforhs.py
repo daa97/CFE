@@ -61,16 +61,31 @@ dynamic_turb_inputs = {
     "N_s" : 0,
     "v_s" : 0.693
 }
+
+def get_props(turb):
+    copy = dict()
+    for k,v in turb.__dict__.items():
+        if isinstance(v, (str, int, float, np.ndarray)):
+            copy[k] = v
+    return copy
+
 def find_turbine(static_inputs, dynamic_inputs):
     test_cfe = tdb.CFE(static_inputs,dynamic_inputs,1)
     init_turb = tdb.turbine(test_cfe,test_cfe.static_turb_inputs,dynamic_inputs,1)
     test_turb = tdb.find_turb(test_cfe,init_turb)
-    print(test_turb)
-    return test_turb
+    return get_props(test_turb)
 
+if __name__=="__main__":
 
-# test_turb = find_turbine(static_inputs=static_cfe_inputs, dynamic_inputs=dynamic_turb_inputs)
-# test_turb.make_hub_and_shroud()
+    test_turb = find_turbine(static_inputs=static_cfe_inputs, dynamic_inputs=dynamic_turb_inputs)
+    copy = dict()
+    for k,v in test_turb.__dict__.items():
+        if isinstance(v, (str, int, float, np.ndarray)):
+            copy[k] = v
+    
+    for k,v in copy.items():
+        print(f"'{k}' : {v}")
+    # test_turb.make_hub_and_shroud()
 
 # noz.create_cascade()
 # noz.find_setting_angle()
