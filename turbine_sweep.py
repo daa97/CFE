@@ -71,9 +71,9 @@ def parametric_sweep(parallel=True):
 
     vary = {"P_core":stdlim,
             "T_channel":stdlim,
-            "r5":stdlim,
+            "r5":[0.93,1.5],
             "d56":stdlim,
-            "N":stdlim,
+            "N":[0.5,1.5],
             "nu_s":[0.5,1.08],
             "L_CFE":stdlim}
 
