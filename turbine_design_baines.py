@@ -25,6 +25,7 @@ Cp_1 = state.cp
 """
 class CFE:
     def __init__(self,static_cfe_inputs,dynamic_turb_inputs,i):
+
         self.i = i
         self.static_cfe_inputs = static_cfe_inputs
         """ Entry channel fluid properties """
@@ -35,13 +36,14 @@ class CFE:
         self.cfe_state = H2(p=self.P_in,t = self.T_in)
         self.gamma = self.cfe_state.gamma
         T = self.T_in
-        self.mu = -0.00000000000144 *T**2 + 0.0000000169 *T+ 0.00000464
+        self.mu = self.cfe_state.mu
         self.rho = self.cfe_state.rho #Density, [kg/m^3]
         self.nu = self.mu/self.rho #Kinematic viscosity [m^2 s^-1]
         
         """ Entry channel geometric properties """
         self.R_i = static_cfe_inputs["inner_radius"] #CFE channel inner radius [m]
         self.R_o = static_cfe_inputs["outer_radius"] #CFE channel outer radius [m]
+        self.uranium_mass = static_cfe_inputs["uranium_mass"]
         self.annulus_area = np.pi * (self.R_o**2 - self.R_i**2) #CFE channel annulus area [m^2]
         self.h = self.R_o - self.R_i #CFE channel thickness [m]
         self.eta = self.R_i/self.R_o #CFE channel radius ratio
@@ -64,36 +66,69 @@ class CFE:
             "mass_flow" : self.mass_flow,
             "omega" : self.omega
         }
-        
+
+    def calc_mass(self):
+        # TODO: add turbine mass
+        PM_porosity = 0.36
+        rho_SiC = 3100.2
+        rho_PM = rho_SiC * (1-PM_porosity)
+        m_PM = self.L * np.pi * (.049**2 - .045**2) * rho_PM
+
+        alpha_HR1 =  (0.008/(1000-70))*(9/5)          # from NASA report, with converting F to C
+        rho_case = 8070 /(1 + alpha_HR1*(self.T_in - 298.15))**3
+        m_case = self.L * np.pi * (self.R_i**2 - .049**2) * rho_case
+
+        self.mass = m_case + m_PM + self.uranium_mass
+        print("CFE MASS:", self.mass)
+        return self.mass
+    
+    def calc_bearing_moment(self):
+        fric_coeff = .0015
+        base_load = 450
+        TWR = 1.3
+        diams = [.020, .020, .060]
+
+        load = base_load + (TWR * 9.806 * self.calc_mass())
+        M1 = fric_coeff * (diams[0]/2) * load       # loaded bearing
+        M2 = fric_coeff * (diams[1]/2) * base_load  # unloaded bearing
+        M3 = fric_coeff * (diams[2]/2) * base_load  # unloaded bearing
+
+        return M1 + M2 + M3
+
+
+    def calc_visc_moment(self):
+        Q = self.mass_flow/self.cfe_state.rho
+        A = np.pi * (self.R_o**2 - self.R_i**2)
+        U = Q/A
+        Re_w = self.omega * self.R_i * (self.R_o - self.R_i) / self.nu
+        Re_a = U * (self.R_o - self.R_i) / self.nu
+        lR = np.log10(Re_w)
+        lewis_eta = 0.15999/0.22085
+        lewis_G_factor = 4*np.pi*lewis_eta/((1-lewis_eta)*(1-lewis_eta**2))
+        C0 = np.log10(lewis_G_factor)
+        if 2600<=Re_w<=13e3:
+            exp = .2005*lR**3 - 1.970*lR**2 + (7.775-1)*lR - 5.516 - C0
+        elif 13e3<Re_w<=1e6:
+            exp = -.006360*lR**3 + .1349*lR**2 + (.8850-1)*lR + 1.610 - C0
+        else:
+            raise ValueError("Rotational Reynolds number out of range!")
+        lewis_Nu = 10**exp
+        Nu = 1.1* lewis_Nu      # adjustment for axial flow
+        Mlam = 4*np.pi*self.cfe_state.mu*self.L*self.omega / (self.R_i**(-2) - self.R_o**(-2))
+        M = Nu*Mlam
+        return M
+
     def calc_work_rate(self):
         """Calculates the required work rate of the turbine based on viscous
         losses from shear at the CFE surface. This calculation is an 
         amalgamation of various papers of torque from taylor-couette flow.
         The correlation for non-dimensional torque comes from Lewis 1999.
-        
         """
-        
-        Re = self.omega * self.R_i * (self.R_o - self.R_i) / self.nu #Inner cylinder Reynolds number
-        
-        if Re <= 13000 and Re > 2600:
-            G = 10**(0.2005*(np.log10(Re))**3 -1.970 * (np.log10(Re))**2 + 7.775 * (np.log10(Re)) - 5.516 )
-            
-        else: 
-            G = 10**(-0.006360 * (np.log10(Re))**3 + 0.1349 * (np.log10(Re))**2 + 0.8850 * (np.log10(Re)) + 1.610 )
-
-        eta =15.999/22.085 
-    
-        G_lam = 4*np.pi * eta /( (1-eta)*(1-eta**2))*Re
-        Nu_omega = G/G_lam
-        G_lam = 2 * self.eta /( (1-self.eta)*(1-self.eta**2))*Re
-        G = Nu_omega * G_lam
-        T_1 = G * 2*np.pi*self.L*self.rho*self.nu**2
-        T_lam = 4*np.pi*self.L*self.mu*self.omega/(self.R_i**-2 - self.R_o**-2) * 1.1 # add 10% to compensate for axial throughflow (Yamada, 1962)
-        T_2 = T_lam * Nu_omega 
-        T_bearings = 0.04358825
-        # print("Viscous torque:",T_1)
-        T_1 += T_bearings
-        work = T_1*self.omega
+        M_bearings = self.calc_bearing_moment()
+        M_visc = self.calc_visc_moment()        
+        M = M_bearings + M_visc
+        work = M * self.omega
+        print("WORK (W):", work)
         return work
 
     def calc_static_turb_inputs(self):

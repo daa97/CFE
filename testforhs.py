@@ -1,26 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import turbine_design_baines as tdb
-import pyromat as pm
+# etas = [0.78, 0.80, 0.82, 0.84, 0.85 0.86]
+# nus = range(0.15,1,0.01)
+# for eta in etas:
+#     for nu in nus:
+#         psi = eta/(2 * nu**2)
 
-static_cfe_inputs = {
-    "inner_radius" : 0.056, #Channel inner radius [m]
-    "outer_radius" : 0.064, #Channel outer radius [m]
-    "length" : 0.94, #CFE channel length [m]
-    "rpm" : 7000, #CFE inner SiC cylinder revolutions per minute
-    "mass_flow" : 0.108, #CFE channel mass flow rate [kg s^-1]
+P1 = np.load("P1.npz")
+m_U = np.load("uranium_mass.npz")
 
-    "temp" : 450, #[K]
-    "press" : 13.1135 #MPa - Turbine Inlet Pressure
-} 
-
-dynamic_turb_inputs = {
-    "PR_ts" : 1.0008,
-    "eta_ts" : 0.9,
-    "h_0ss" : 0,
-    "N_s" : 0,
-    "v_s" : 0.693
-}
 opts = {
     "dim" : "Y",
     "prelim" : "y",
@@ -41,17 +30,44 @@ nozzle_inputs = {
         "setting angle" : 10/180*np.pi
     }
 
-test_cfe = tdb.CFE(static_cfe_inputs,dynamic_turb_inputs,1)
+static_cfe_inputs = {
+    "inner_radius" : 0.056, #Channel inner radius [m]
+    "outer_radius" : 0.064, #Channel outer radius [m]
+    "length" : 0.94, #CFE channel length [m]
+    "rpm" : 7000, #CFE inner SiC cylinder revolutions per minute
+    "mass_flow" : 0.108, #CFE channel mass flow rate [kg s^-1]
+    "uranium_mass":m_U["baseline"],
+    "temp" : 450, #[K]
+    "press" : P1["baseline"]/1e6 #MPa - Turbine Inlet Pressure
+} 
 
-init_turb = tdb.turbine(test_cfe.static_turb_inputs,dynamic_turb_inputs,1)
+dynamic_turb_inputs = {
+    "PR_ts" : 1.0008,
+    "eta_ts" : 0.9,
+    "h_0ss" : 0,
+    "N_s" : 0,
+    "v_s" : 0.693
+}
 
-# test_turb = tdb.find_turb(test_cfe,init_turb)
+def get_props(turb):
+    copy = dict()
+    for k,v in turb.__dict__.items():
+        if isinstance(v, (str, int, float, np.ndarray)):
+            copy[k] = v
+    return copy
 
-init_turb.make_hub_and_shroud()
-# init_turb.print_turbine(opts)
+def find_turbine(static_inputs, dynamic_inputs, dict_only=False):
+    test_cfe = tdb.CFE(static_inputs,dynamic_inputs,1)
+    init_turb = tdb.turbine(test_cfe,test_cfe.static_turb_inputs,dynamic_inputs,1)
+    test_turb = tdb.find_turb(test_cfe,init_turb)
+    if dict_only:
+        test_turb = get_props(test_turb)
+    return test_turb
 
+if __name__=="__main__":
 
-# noz = tdb.nozzle(nozzle_inputs,test_turb)
+    test_turb = find_turbine(static_inputs=static_cfe_inputs, dynamic_inputs=dynamic_turb_inputs)
+    # test_turb.make_hub_and_shroud()
 
 # noz.create_cascade()
 # noz.find_setting_angle()

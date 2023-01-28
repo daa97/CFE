@@ -63,27 +63,3 @@ state = H2(P=12.5e6, T=450)
 
 M = TTCPF_torque(.056, .058, .95, 733, state, .108)
 print(f"TTCPF Torque: {M:.5f} N*m")
-
-
-# vals = []
-# rmin = .05
-# rmax = .066
-# tmin = .0005
-# tmax = .010
-# rs = np.arange(rmin, rmax, (rmax-rmin)/4)
-# ts = np.arange(tmin, tmax, (tmax-tmin)/100)
-
-# for ri in rs:
-#     vals.append([])
-#     for ti in ts:
-#         A = TTCPF_torque(ri, ri+ti, .84, 7000*np.pi/30, state, 0.108)
-#         vals[-1].append(A)
-
-# for i in range(len(vals)):
-#     plt.plot(ts*1000, vals[i], label=f"$r_i$ = {rs[i]*1000:.0f} mm")
-# plt.xlabel("Channel Width $r_o - r_i$ (mm)")
-# plt.ylabel("Power Dissipated (W)")
-
-# plt.legend()
-# plt.savefig("TTCPF Power")
-# plt.show()

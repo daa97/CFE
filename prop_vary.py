@@ -18,7 +18,7 @@ base = {"P_core":10e6,
         "r5":56e-3,
         "d56":8e-3,
         "N":7000,
-        "nu_s":0.691,
+        "nu_s":0.693,
         "L_CFE":.84,
         "T_core":3700}
 
@@ -77,10 +77,11 @@ for key in vary:                    # iterate through properties we want to vary
 
 
 for key in yvals:       # plot each line
-    plt.plot(yvals[key], label=labels[key])
+    plt.plot(xvals[key], yvals[key], label=labels[key])
 
-plt.legend()
-plt.xlim(0,2.2)
+plt.xlim(0,2.1)
+plt.legend(title="Normalized Parameter", title_fontproperties={"family": "Times New Roman:bold"})
+plt.xlabel("Parameter Normalized to Baseline Configuration")
 
 # ******************************************
 # TODO: update figure name
