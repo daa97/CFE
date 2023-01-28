@@ -1,11 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import turbine_design_baines as tdb
-# etas = [0.78, 0.80, 0.82, 0.84, 0.85 0.86]
-# nus = range(0.15,1,0.01)
-# for eta in etas:
-#     for nu in nus:
-#         psi = eta/(2 * nu**2)
+import pyromat as pm
+
 static_cfe_inputs = {
     "inner_radius" : 0.056, #Channel inner radius [m]
     "outer_radius" : 0.064, #Channel outer radius [m]
@@ -28,7 +25,8 @@ opts = {
     "dim" : "Y",
     "prelim" : "y",
     "geom" : "y",
-    "stations" : ["Y","y"]
+    "stations" : ["Y","y"],
+    "losses" : "Y"
 }
 
 nozzle_inputs = {
@@ -45,12 +43,13 @@ nozzle_inputs = {
 
 test_cfe = tdb.CFE(static_cfe_inputs,dynamic_turb_inputs,1)
 
-init_turb = tdb.turbine(test_cfe,test_cfe.static_turb_inputs,dynamic_turb_inputs,1)
+init_turb = tdb.turbine(test_cfe.static_turb_inputs,dynamic_turb_inputs,1)
 
-test_turb = tdb.find_turb(test_cfe,init_turb)
+# test_turb = tdb.find_turb(test_cfe,init_turb)
 
-test_turb.make_hub_and_shroud()
-# test_turb.print_turbine(opts)
+init_turb.make_hub_and_shroud()
+# init_turb.print_turbine(opts)
+
 
 # noz = tdb.nozzle(nozzle_inputs,test_turb)
 
