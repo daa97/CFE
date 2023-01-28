@@ -5,6 +5,7 @@ import testforhs as tfhs
 from multiprocessing import Pool
 from os import cpu_count
 
+
 mpl.rc('font', family='Times New Roman',size="10")
 mpl.rc('figure', figsize=(4.8,3.6))
 mpl.rc('savefig', dpi=800)
@@ -28,7 +29,7 @@ def turb_props(props, P1):
     statics["length"] = L_total
     dynamics["v_s"] = props["nu_s"]
     statics["press"] = P1 / 1e6
-    return statics, dynamics
+    return statics, dynamics, True
 
 def iter_param(base, key, x, n, parallel=True):
     P1vals = np.load("P1.npz", allow_pickle=True)
@@ -73,7 +74,7 @@ def parametric_sweep(parallel=True):
             "T_channel":stdlim,
             "r5":[0.93,1.5],
             "d56":stdlim,
-            "N":[0.5,1.5],
+            "N":stdlim,
             "nu_s":[0.5,1.08],
             "L_CFE":stdlim}
 

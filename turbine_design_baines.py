@@ -74,6 +74,7 @@ class CFE:
         m_case = self.L * np.pi * (self.R_i**2 - .049**2) * rho_case
 
         self.mass = m_case + m_PM + self.uranium_mass
+        print("CFE MASS:", self.mass)
         return self.mass
     
     def calc_bearing_moment(self):
@@ -82,7 +83,7 @@ class CFE:
         TWR = 1.3
         diams = [.020, .020, .060]
 
-        load = base_load + (TWR * 9.806 * self.mass)
+        load = base_load + (TWR * 9.806 * self.calc_mass())
         M1 = fric_coeff * (diams[0]/2) * load       # loaded bearing
         M2 = fric_coeff * (diams[1]/2) * base_load  # unloaded bearing
         M3 = fric_coeff * (diams[2]/2) * base_load  # unloaded bearing
@@ -122,6 +123,7 @@ class CFE:
         M_visc = self.calc_visc_moment()        
         M = M_bearings + M_visc
         work = M * self.omega
+        print("WORK (W):", work)
         return work
 
     def calc_static_turb_inputs(self):
