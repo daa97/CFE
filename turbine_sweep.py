@@ -38,9 +38,10 @@ vary = {"P_core":stdlim,
 
 
 P1vals = np.load("P1.npz", allow_pickle=True)
-props = base.copy()             # reset all properties to base values
+mvals = np.load("uranium_mass.npz", allow_pickle=True)
 
-def turb_props(props, P1):
+
+def turb_props(props, P1, m):
     """Takes a property dictionary built for performing a generic parametric
     sweep and turns it into a set of inputs for the find_turb function."""
     L_total = props["L_CFE"] + 0.1          # compute total length
@@ -58,13 +59,17 @@ def turb_props(props, P1):
 
 def iter_param(base, key, x, n, parallel=True):
     args = []
+    props = base.copy()             # reset all properties to base values
+
     for j in range(len(x)):
         props[key] = x[j] * base[key]              # adjust single parameter
         if key in P1vals.keys():
             P1 = P1vals[key][j]
+            m = mvals[key][j]
         else:
             P1 = P1vals["baseline"]
-        args.append(turb_props(props, P1))
+            m = mvals["baseline"]
+        args.append(turb_props(props, P1, m))
 
     if parallel:
         pool = Pool(14)
@@ -92,7 +97,7 @@ def parametric_sweep(parallel=True):
 if __name__=="__main__":
     turb_cfes = parametric_sweep(parallel=True)
     print("Turbine information collected")
-    turb_cfes["baseline"] = [tfhs.find_turbine(*turb_props(base, P1vals["baseline"]))]
+    turb_cfes["baseline"] = [tfhs.find_turbine(*turb_props(base, P1vals["baseline"], mvals["baseline"]))]
     
     savenames = ['eta', 'W_bear', 'W_visc', 'W', 'radius', 'mass']
     outs = dict()
@@ -104,7 +109,6 @@ if __name__=="__main__":
         for turb, cfe in v:
             outs['eta'][k].append(turb["eta_ts_loss"])
             outs['radius'][k].append(turb["r_4"])
-
             outs['W'][k].append(cfe["work_rate"])
             outs['W_bear'][k].append(cfe["M_bearing"] * cfe["omega"])
             outs['W_visc'][k].append(cfe["M_visc"] * cfe["omega"])
