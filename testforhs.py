@@ -58,15 +58,16 @@ def get_props(turb):
 
 def find_turbine(static_inputs, dynamic_inputs, dict_only=False):
     test_cfe = tdb.CFE(static_inputs,dynamic_inputs,1)
-    init_turb = tdb.turbine(test_cfe,test_cfe.static_turb_inputs,dynamic_inputs,1)
+    init_turb = tdb.turbine(test_cfe.static_turb_inputs,dynamic_inputs,1)
     test_turb = tdb.find_turb(test_cfe,init_turb)
     if dict_only:
         test_turb = get_props(test_turb)
-    return test_turb
+        test_cfe = get_props(test_cfe)
+    return test_turb, test_cfe
 
 if __name__=="__main__":
-
-    test_turb = find_turbine(static_inputs=static_cfe_inputs, dynamic_inputs=dynamic_turb_inputs)
+    
+    test_turb, test_cfe = find_turbine(static_inputs=static_cfe_inputs, dynamic_inputs=dynamic_turb_inputs)
     # test_turb.make_hub_and_shroud()
 
 # noz.create_cascade()
