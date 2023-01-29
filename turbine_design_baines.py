@@ -101,6 +101,7 @@ class CFE:
         U = Q/A
         Re_w = self.omega * self.R_i * (self.R_o - self.R_i) / self.nu
         Re_a = U * (self.R_o - self.R_i) / self.nu
+        #print(f"Re w, a: {Re_w:,.1f}, {Re_a:,.1f}")
         lR = np.log10(Re_w)
         lewis_eta = 0.15999/0.22085
         lewis_G_factor = 4*np.pi*lewis_eta/((1-lewis_eta)*(1-lewis_eta**2))
@@ -113,8 +114,11 @@ class CFE:
             raise ValueError("Rotational Reynolds number out of range!")
         lewis_Nu = 10**exp
         Nu = 1.1* lewis_Nu      # adjustment for axial flow
+        #print(f"Nu: {Nu:.4f}")
         Mlam = 4*np.pi*self.cfe_state.mu*self.L*self.omega / (self.R_i**(-2) - self.R_o**(-2))
+        #print(f"Wlam: {Mlam*self.omega:.4f}")
         self.M_visc = Nu*Mlam
+        #print(f"W_visc: {self.M_visc*self.omega}")
         return self.M_visc
 
     def calc_work_rate(self):

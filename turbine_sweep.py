@@ -49,6 +49,7 @@ def turb_props(props, P1, m):
     statics = tfhs.static_cfe_inputs.copy()
     dynamics = tfhs.dynamic_turb_inputs.copy()
     statics["inner_radius"] = props["r5"]
+    statics["uranium_mass"] = m
     statics["outer_radius"] = r6
     statics["rpm"] = props["N"]
     statics["temp"] = props["T_channel"]
@@ -99,7 +100,7 @@ if __name__=="__main__":
     print("Turbine information collected")
     turb_cfes["baseline"] = [tfhs.find_turbine(*turb_props(base, P1vals["baseline"], mvals["baseline"]))]
     
-    savenames = ['eta', 'W_bear', 'W_visc', 'W', 'radius', 'mass']
+    savenames = ['eta', 'W_bear', 'W_visc', 'W', 'radius', 'mass', "N_s"]
     outs = dict()
     for s in savenames:
         outs[s] = dict()
@@ -109,6 +110,7 @@ if __name__=="__main__":
         for turb, cfe in v:
             outs['eta'][k].append(turb["eta_ts_loss"])
             outs['radius'][k].append(turb["r_4"])
+            outs['N_s'][k].append(turb["N_s"])
             outs['W'][k].append(cfe["work_rate"])
             outs['W_bear'][k].append(cfe["M_bearing"] * cfe["omega"])
             outs['W_visc'][k].append(cfe["M_visc"] * cfe["omega"])
@@ -117,6 +119,8 @@ if __name__=="__main__":
     for s in outs:
         np.savez(f"turbine_sweep/{s}.npz", **outs[s])
     
+    print("Export Done")
+    np.savez("turbine_cfe_sweep.npz", turb_cfes)
     print("Done!")
 
     
