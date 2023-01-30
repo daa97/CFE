@@ -773,7 +773,7 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
         beta_h[0] = -(90 - beta_h5*180/np.pi)
         beta_s[0] = -(90 - beta_s5*180/np.pi)
         beta_h[-1] = -(90 - beta_4*180/np.pi)
-        beta_s[-1] = -(90 -beta_4*180/np.pi)
+        beta_s[-1] = -(90 - beta_4*180/np.pi)
 
         # print("Hub wrap angle")
         # print(theta_hd)
