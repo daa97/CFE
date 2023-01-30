@@ -5,7 +5,18 @@ import scipy.interpolate as inter
 import csv
 import time
 from fluids import *
-
+import matplotlib as mpl
+mpl.rc('font', family='Times New Roman',size="10")
+mpl.rc('figure', figsize=(4.8,3.6))
+mpl.rc('legend', labelspacing=0.05)
+mpl.rc('savefig', dpi=800)
+mpl.rc('lines', linewidth=1.2)
+mpl.rc('axes', grid=True)
+mpl.rc('grid', linewidth=0.25)
+mpl.rc('mathtext', fontset="dejavuserif")
+mpl.rc('xtick.minor', visible=True, size=1.5, width=0.5)
+mpl.rc('ytick.minor', visible=True, size=1.5, width=0.5)
+plt.rcParams['figure.constrained_layout.use'] =  True
 """
 Syntax for thermo calculations
 
@@ -95,7 +106,6 @@ class CFE:
 
         return M1 + M2 + M3
 
-
     def calc_visc_moment(self):
         Q = self.mass_flow/self.cfe_state.rho
         A = np.pi * (self.R_o**2 - self.R_i**2)
@@ -176,7 +186,7 @@ class turbine:
         self.h_01 = self.state_01.h
         self.h_05 = self.state_01.h - self.deltah_0
         self.state_05 = H2(h = self.h_05, P=static_turb_inputs["P_01"]/self.PR_ts)
-        self.epsilon_b = 0.4e-3
+        self.epsilon_b = 0.5e-3
         self.Q = self.mass_flow / self.state_05.rho
         # print(self.state_01)
         # print(self.state_05)
@@ -238,6 +248,7 @@ class turbine:
         self.W_5 = np.sqrt(self.W_m5**2 + self.W_theta5**2)
         self.beta_5_rad = np.arctan(self.W_theta5/self.W_m5)
         self.beta_5 = self.beta_5_rad * 180 / np.pi
+        beta_5_rad = 90 - np.abs(np.arctan(self.W_m5/self.W_theta5))
         self.P_05 = self.state_05.p
         self.state_5ss = H2(s = self.state_01.s,p = self.state_5.p)
         self.M_5 = self.C_5/ self.state_5.a
@@ -246,6 +257,10 @@ class turbine:
         self.beta_s5 = self.beta_s5_rad * 180 / np.pi
         self.beta_h5_rad = np.arctan(self.r_5/self.r_h5 * np.tan(self.beta_5_rad))
         self.beta_h5 = self.beta_h5_rad * 180 / np.pi
+        print("r5/rs5",self.r_5/self.r_s5)
+        print("r5/rh5",self.r_5/self.r_h5)
+        print("tanbeta5",np.tan(self.beta_5))
+        print("tan-beta5",np.tan(-self.beta_5))
 
         self.z_r = 1.5 * (self.b_5)
         self.n_r = np.round(np.pi/30*(110-self.alpha_4)*np.tan(self.alpha_4*np.pi/180)) #Glassman 1972
@@ -535,11 +550,11 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
                         print(strings[key][i])
 
     def print_states(self):
-        print(self.state_1)
-        print(self.state_2)
+        print(self.state_01)
+        # print(self.state_2)
 #        print(self.state_3)
-        print(self.state_4)
-        print(self.state_5)
+        print(self.state_04)
+        print(self.state_05)
 
     def velocity_triangles(self):
         fig, tri = plt.subplots(2)
@@ -572,7 +587,7 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
 
     def make_hub_and_shroud(self):
         n = 5
-        N_p = 20 # Number of points used to make the hub and shroud curves
+        N_p = 21 # Number of points used to make the hub and shroud curves
 
         """Hub curve"""
         if self.r_4-self.r_h5 > self.z_r:
@@ -688,26 +703,25 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
         plt.show()
 
         """Hub and shroud wrap angles"""
-        beta_h5_aung = np.pi/2 - np.abs(self.beta_h5_rad)
-        beta_s5_aung = np.pi/2 - np.abs(self.beta_s5_rad)
-        beta_4_aung = np.pi/2
-        cotbeta4 = 1/np.tan(beta_4_aung)
-        cotbetas5 = 1/np.tan(beta_s5_aung)
-        cotbetah5 = 1/np.tan(beta_h5_aung)
-        print(beta_4_aung)
-        print(beta_s5_aung)
-        print(beta_h5_aung)
+        beta_h5 = np.abs(self.beta_h5_rad)
+        print("betah5",180/np.pi*beta_h5)
+        beta_s5 = np.abs(self.beta_s5_rad)
+        print("betas5",180/np.pi*beta_s5)
+        beta_4 = np.pi/2
+        cotbeta4 = 1/np.tan(beta_4)
+        cotbetas5 = 1/np.tan(beta_s5)
+        cotbetah5 = 1/np.tan(beta_h5)
         print(cotbeta4)
         print(cotbetas5)
         print(cotbetah5)
 
-        m_4 = mid[-1,0]
+        m_4 = m_s[-1]
 
         theta_h = np.zeros((len(hub_points),))
         theta_s = np.zeros((len(hub_points),))
         norm_m = np.zeros((len(hub_points),))
         norm_m_h = np.zeros((len(hub_points),))
-        m = mid[:,0]
+        m = m_s
         # cot_beta4 = 1/np.tan()
         theta_4 = (m_4 / 2) * (cotbeta4 / self.r_4 + cotbetas5 / self.r_s5)
         print(theta_4*180/np.pi)
@@ -730,35 +744,51 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
             # print("shroud",m_s[i])
             # print("hub",m_h[i])
             theta_h[i] = (D * m[i] + E * m[i]**2 + F * m[i]**3) 
-            norm_m[i] = mid[i,0]/m_4
+            norm_m[i] = m_s[i]/m_4
 
-        beta_h = np.zeros(len(theta_h),)
-        print(beta_h)
-        beta_s = np.zeros(len(theta_h),)
-        for i,beta in enumerate(beta_h):
+        tanbeta_h = np.zeros(len(theta_h),)
+        tanbeta_s = np.zeros(len(theta_h),)
+        for i,beta in enumerate(tanbeta_h):
             if i==0:
-                beta_h[i] = beta_h5_aung * 180/np.pi
-                beta_s[i] = beta_s5_aung * 180/np.pi
+                pass
             if i==1:
                 pass
             else: 
-                beta_h[i-1] = hub[i-1,2] * (theta_h[i] - theta_h[i-2]) / (mid[i,0]-mid[i-2,0]) * 180/np.pi
-                beta_s[i-1] = shroud[i-1,2] * (theta_s[i] - theta_s[i-2]) / (mid[i,0]-mid[i-2,0]) * 180/np.pi
-        beta_h[-1] = beta_4_aung * 180/np.pi
-        beta_s[-1] = beta_4_aung * 180/np.pi
-        # print("hub meridion")
-        # print(m_h)
-        # print("shroud meridion")
-        # print(m_s)
+                
+                tanbeta_h[i-1] = hub_equal_coords[i-1,1] * (theta_h[i] - theta_h[i-2]) / (m_s[i]-m_s[i-2])
+                # print("cotbetah",cotbeta_h[i-1])
+                # print("r:",hub_equal_coords[i-1,1]) 
+                # print("dtheta",(theta_h[i] - theta_h[i-2]))
+                # print("dm",m_s[i]-m_s[i-2])
+                # print()
+                tanbeta_s[i-1] = shroud_equal_coords[i-1,1] * (theta_s[i] - theta_s[i-2]) / (m_s[i]-m_s[i-2]) 
+        # print(cotbeta_h)
+        # print(cotbeta_s)
+        theta_sd = [x*180/np.pi for x in theta_s]
+        theta_hd = [x*180/np.pi for x in theta_h]
+        beta_h = [-np.arctan(x)*180/np.pi for x in tanbeta_h]
+        beta_s = [-np.arctan(x)*180/np.pi for x in tanbeta_s]
+        beta_h[0] = -(90 - beta_h5*180/np.pi)
+        beta_s[0] = -(90 - beta_s5*180/np.pi)
+        beta_h[-1] = -(90 - beta_4*180/np.pi)
+        beta_s[-1] = -(90 -beta_4*180/np.pi)
+
         # print("Hub wrap angle")
-        # print(theta_h)
+        # print(theta_hd)
         # print("Shroud wrap angle")
-        # print(theta_s)
-        plt.plot(norm_m,theta_h,marker=".")
-        plt.plot(norm_m,theta_s,marker=".")
-        plt.show()
-        plt.plot(norm_m,beta_h)
-        plt.plot(norm_m,beta_s)
+        # print(theta_sd)
+
+        # print("Hub beta angle")
+        # print(beta_h)
+        # print("Shroud beta angle")
+        # print(beta_s)
+
+        plt.plot(norm_m,theta_hd,color="b",label="Hub Polar Angle [deg]")
+        plt.plot(norm_m,theta_sd,color="b",linestyle="--",label="Shroud Polar Angle [deg]")
+        plt.plot(norm_m,beta_h,color="k",label="Hub Blade Angle [deg]")
+        plt.plot(norm_m,beta_s,color="k",linestyle="--",label="Shroud Blade Angle [deg]")
+        plt.grid(which="minor", axis="both", linewidth=0.2, alpha=0.33)
+        plt.legend()
         plt.show()
 
     def calc_vel_ratio(self,dynamic_turb_inputs):

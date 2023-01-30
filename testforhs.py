@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import turbine_design_baines as tdb
+import turbine_design_baines as tda
 # etas = [0.78, 0.80, 0.82, 0.84, 0.85 0.86]
 # nus = range(0.15,1,0.01)
 # for eta in etas:
@@ -38,7 +38,7 @@ static_cfe_inputs = {
     "mass_flow" : 0.108, #CFE channel mass flow rate [kg s^-1]
     "uranium_mass":m_U["baseline"],
     "temp" : 450, #[K]
-    "press" : P1["baseline"]/1e6 #MPa - Turbine Inlet Pressure
+    "press" : 13.754 #MPa - Turbine Inlet Pressure
 } 
 
 dynamic_turb_inputs = {
@@ -46,28 +46,31 @@ dynamic_turb_inputs = {
     "eta_ts" : 0.9,
     "h_0ss" : 0,
     "N_s" : 0,
-    "v_s" : 0.693
+    "v_s" : 0.695
 }
 
-def get_props(turb):
-    copy = dict()
-    for k,v in turb.__dict__.items():
-        if isinstance(v, (str, int, float, np.ndarray)):
-            copy[k] = v
-    return copy
+# def get_props(turb):
+#     copy = dict()
+#     for k,v in turb.__dict__.items():
+#         if isinstance(v, (str, int, float, np.ndarray)):
+#             copy[k] = v
+#     return copy
 
 def find_turbine(static_inputs, dynamic_inputs, dict_only=False):
-    test_cfe = tdb.CFE(static_inputs,dynamic_inputs,1)
-    init_turb = tdb.turbine(test_cfe,test_cfe.static_turb_inputs,dynamic_inputs,1)
-    test_turb = tdb.find_turb(test_cfe,init_turb)
-    if dict_only:
-        test_turb = get_props(test_turb)
+    test_cfe = tda.CFE(static_inputs,dynamic_inputs,1)
+    init_turb = tda.turbine(test_cfe.static_turb_inputs,dynamic_inputs,1)
+    test_turb = tda.find_turb(test_cfe,init_turb)
     return test_turb
+    # if dict_only:
+    #     test_turb = get_props(test_turb)
+    # return test_turb
 
 if __name__=="__main__":
 
     test_turb = find_turbine(static_inputs=static_cfe_inputs, dynamic_inputs=dynamic_turb_inputs)
-    # test_turb.make_hub_and_shroud()
+    test_turb.print_turbine(opts)
+    test_turb.make_hub_and_shroud()
+    test_turb.print_states()
 
 # noz.create_cascade()
 # noz.find_setting_angle()
