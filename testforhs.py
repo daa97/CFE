@@ -67,7 +67,8 @@ def find_turbine(static_inputs, dynamic_inputs, dict_only=False):
 
 if __name__=="__main__":
     
-    test_turb, test_cfe = find_turbine(static_inputs=static_cfe_inputs, dynamic_inputs=dynamic_turb_inputs)
+    test_turb, test_cfe = find_turbine(static_inputs=static_cfe_inputs, dynamic_inputs=dynamic_turb_inputs, dict_only=True)
+    print(test_turb)
     # test_turb.make_hub_and_shroud()
 
 # noz.create_cascade()

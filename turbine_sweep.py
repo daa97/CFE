@@ -4,42 +4,13 @@ import matplotlib as mpl
 import testforhs as tfhs
 from multiprocessing import Pool
 from os import cpu_count
+import prop_vary as pv
 
-
-mpl.rc('font', family='Times New Roman',size="10")
-mpl.rc('figure', figsize=(4.8,3.6))
-mpl.rc('savefig', dpi=800)
-mpl.rc('lines', linewidth=1.2)
-mpl.rc('axes', grid=True)
-mpl.rc('grid', linewidth=0.25)
-mpl.rc('mathtext', fontset="dejavuserif")
-mpl.rc('xtick.minor', visible=True, size=1.5, width=0.5)
-mpl.rc('ytick.minor', visible=True, size=1.5, width=0.5)
-plt.rcParams['figure.constrained_layout.use'] =  True
-
-base = {"P_core":10e6,
-        "T_channel":450,
-        "r5":56e-3,
-        "d56":8e-3,
-        "N":7000,
-        "nu_s":0.693,
-        "L_CFE":.84,
-        "T_core":3700}
-
-stdlim = [0.5, 2]
-
-vary = {"P_core":stdlim,
-        "T_channel":stdlim,
-        "r5":[0.93,1.5],
-        "d56":stdlim,
-        "N":stdlim,
-        "nu_s":[0.5,1.08],
-        "L_CFE":stdlim}
+vary = pv.vary
 
 
 P1vals = np.load("P1.npz", allow_pickle=True)
 mvals = np.load("uranium_mass.npz", allow_pickle=True)
-
 
 def turb_props(props, P1, m):
     """Takes a property dictionary built for performing a generic parametric

@@ -76,7 +76,8 @@ class CFE:
 
         alpha_HR1 =  (0.008/(1000-70))*(9/5)          # from NASA report, with converting F to C
         rho_case = 8070 /(1 + alpha_HR1*(self.T_in - 298.15))**3
-        m_case = self.L * np.pi * (self.R_i**2 - .049**2) * rho_case
+        ri_case = self.R_i - .005                   # 5 mm thick case
+        m_case = self.L * np.pi * (self.R_i**2 - ri_case**2) * rho_case
 
         self.mass = m_case + m_PM + self.uranium_mass
         return self.mass

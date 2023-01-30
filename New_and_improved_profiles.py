@@ -5,6 +5,7 @@ import scipy as sp
 import sys
 from fluids import H2
 import multiprocessing as multi
+import prop_vary as pv
 
 
 class Face:
@@ -158,7 +159,6 @@ class CFE:
             temp_profile = []
             for i in range(self.num_cells):
                 temp_profile.append(float(self.temp_profile_input[i]))
-
         return temp_profile
     
         
@@ -365,49 +365,14 @@ if __name__ =="__main__":
     T_P = "1500 "#+ 1.5*(20/(r))"
     q_tp = "10000000 + 150**(100*r)"
     BCs = ([1494,"dirichlet"],[0,"neumann"])
-
-    base = {"P_core":10e6,
-            "T_channel":450,
-            "r5":56e-3,
-            "d56":8e-3,
-            "N":7000,
-            "nu_s":0.691,
-            "L_CFE":.84,
-            "T_core":3700}
-
-    stdlim = [0.5, 2]
-
-    # ******************************************
-    # TODO: if you don't want to plot vs a particular parameter, remove it from `vary`
-    # TODO: if you want to plot a particular parameter over a range different from others, replace its limits in `vary`
-    # ******************************************
-
-    vary = {#"P_core":stdlim,
-            #"T_channel":stdlim,
-            # "r5":stdlim,
-            # "d56":[0.125, 2],
-            "N":stdlim}
-            #"nu_s":stdlim
-            #"L_CFE":stdlim
-            #}
-
-    labels = {"P_core":"core pressure $P_3$", 
-            "T_channel":"channel temperature $T_1$",
-            "r5":"case radius $r_5$",
-            "d56":"outer channel width $(r_6 - r_5)$",
-            "N":"CFE rotation rate $\omega$",
-            "nu_s":"turbine sp. speed $\\nu_s$",
-            "L_CFE":"CFE length $l$"}
+    base = pv.base
+    vary = pv.press_vary
 
     yvals = dict()
     xvals = dict()
 
-    base_core = H2(P=base["P_core"], T=base["T_core"])      # speed code up by not calculating on every single loop
-    r1 = .03
-    r2 = .045
-    mdot = .108
-    num_cells = 250
-    '''
+    num_cells = 450
+    
     for key in vary:                    # iterate through properties we want to vary
         props = base.copy()             # reset all properties to base values
         lim = vary[key]                 # relative property value limits
@@ -422,27 +387,18 @@ if __name__ =="__main__":
             print(f"\n\tRELATIVE PROPERTY VALUE {key}: {x}")
             props[key] = x * base[key]              # adjust single parameter
             L_total = props["L_CFE"] + 0.1          # compute total length
-            if key=="P_core" or key=="T_core":      # check if core state needs adjustment
-                core = H2(P=props["P_core"], T=props["T_core"])
-            else:
-                core = base_core
             omega = props["N"] * np.pi/30           # compute omega
             r6 = props["r5"] + props["d56"]         # compute r6
             i +=1
             
-
             P_core = props["P_core"]
             
             N = props["N"]
             L = props["L_CFE"]
+            r2 = props["r2"]
+            r1 = props["r1"]
 
-            # CFEs.append()            
-            # results = pool.map(solve, CFEs)
-            # for index in range(len(results)):
-            #R_1 = results[index]
-            #D_1 = CFEs[index]
-
-            D_1 = CFE(r2,r2-r1,L,7, num_cells, T_P, mdot, N, P_core,BCs,PS_data_1,OG_power=7)
+            D_1 = CFE(r2,r2-r1,L,7, num_cells, T_P, props["mdot"], N, P_core,BCs,PS_data_1,OG_power=7)
             R_1 = solve(D_1)
 
             T_1 = R_1[0]
@@ -464,8 +420,11 @@ if __name__ =="__main__":
             np.save(f"Better/d_{key}_{i}.npy", mix_density)
             np.save(f"Better/r_{key}_{i}.npy", radius)
     # get baseline parameters
-    '''
-    base_cfe = CFE(r2,r2-r1,base["L_CFE"],7, num_cells, T_P, mdot, base["N"], base["P_core"],BCs,PS_data_1,OG_power=7)
+    N = base["N"]
+    L = base["L_CFE"]
+    r2 = base["r2"]
+    r1 = base["r1"]
+    base_cfe = CFE(r2,r2-r1,base["L_CFE"],7, num_cells, T_P, base["mdot"], base["N"], base["P_core"],BCs,PS_data_1,OG_power=7)
     base_results = solve(base_cfe)
     R_1 = base_results
     T_1 = R_1[0]
