@@ -90,7 +90,6 @@ class CFE:
         m_case = self.L * np.pi * (self.R_i**2 - .049**2) * rho_case
 
         self.mass = m_case + m_PM + self.uranium_mass
-        print("CFE MASS:", self.mass)
         return self.mass
     
     def calc_bearing_moment(self):
@@ -103,8 +102,8 @@ class CFE:
         M1 = fric_coeff * (diams[0]/2) * load       # loaded bearing
         M2 = fric_coeff * (diams[1]/2) * base_load  # unloaded bearing
         M3 = fric_coeff * (diams[2]/2) * base_load  # unloaded bearing
-
-        return M1 + M2 + M3
+        self.M_bearing = M1 + M2 + M3
+        return self.M_bearing
 
     def calc_visc_moment(self):
         Q = self.mass_flow/self.cfe_state.rho
@@ -112,6 +111,7 @@ class CFE:
         U = Q/A
         Re_w = self.omega * self.R_i * (self.R_o - self.R_i) / self.nu
         Re_a = U * (self.R_o - self.R_i) / self.nu
+        #print(f"Re w, a: {Re_w:,.1f}, {Re_a:,.1f}")
         lR = np.log10(Re_w)
         lewis_eta = 0.15999/0.22085
         lewis_G_factor = 4*np.pi*lewis_eta/((1-lewis_eta)*(1-lewis_eta**2))
@@ -124,9 +124,12 @@ class CFE:
             raise ValueError("Rotational Reynolds number out of range!")
         lewis_Nu = 10**exp
         Nu = 1.1* lewis_Nu      # adjustment for axial flow
+        #print(f"Nu: {Nu:.4f}")
         Mlam = 4*np.pi*self.cfe_state.mu*self.L*self.omega / (self.R_i**(-2) - self.R_o**(-2))
-        M = Nu*Mlam
-        return M
+        #print(f"Wlam: {Mlam*self.omega:.4f}")
+        self.M_visc = Nu*Mlam
+        #print(f"W_visc: {self.M_visc*self.omega}")
+        return self.M_visc
 
     def calc_work_rate(self):
         """Calculates the required work rate of the turbine based on viscous
@@ -138,7 +141,6 @@ class CFE:
         M_visc = self.calc_visc_moment()        
         M = M_bearings + M_visc
         work = M * self.omega
-        print("WORK (W):", work)
         return work
 
     def calc_static_turb_inputs(self):

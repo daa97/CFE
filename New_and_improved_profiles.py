@@ -184,12 +184,12 @@ class CFE:
         return q_tp
 
     def find_press_profile(self):
-        preint = (self.rpm * 2*np.pi/60)**2 / self.OR_U
+        preint = (self.rpm * 2*np.pi/60)**2
         dPs = []
         Ps = []
         rho_total = lambda cell: cell.rho_U * (1-cell.void) + cell.rho_H * cell.void
         for c in list(reversed(self.mesh)):
-            dP = c.cell_radius**2 * rho_total(c) * c.cell_len * preint
+            dP = c.cell_radius * rho_total(c) * c.cell_len * preint
             dPs.append(dP)
             Ps.append(np.sum(dPs)+self.P_0)
         
@@ -280,7 +280,7 @@ def solve(init_CFE):
     while  res > tol:
         if maxres == 100:           # get initial residual value
             maxres = res
-        status(f"Err: {res/tol:.2f}; Completion: {(1-np.log(res/tol)/np.log(maxres/tol))*100:.3f}%")    # print progress 
+        #status(f"Err: {res/tol:.2f}; Completion: {(1-np.log(res/tol)/np.log(maxres/tol))*100:.3f}%")    # print progress 
 
         next_CFE = CFE(old_CFE.OR_U, old_CFE.annulus_t, old_CFE.L, old_CFE.MW, old_CFE.num_cells, T_old,old_CFE.mass_flow,
                         old_CFE.rpm, old_CFE.P_0,old_CFE.BC,old_CFE.q_profile_input,iteration = old_CFE.it + 1, OG_power = old_CFE.OG_MW, press_profile=old_CFE.find_press_profile())
@@ -382,14 +382,14 @@ if __name__ =="__main__":
     # TODO: if you want to plot a particular parameter over a range different from others, replace its limits in `vary`
     # ******************************************
 
-    vary = {"P_core":stdlim,
-            "T_channel":stdlim,
+    vary = {#"P_core":stdlim,
+            #"T_channel":stdlim,
             # "r5":stdlim,
             # "d56":[0.125, 2],
-            "N":stdlim,
+            "N":stdlim}
             #"nu_s":stdlim
-            "L_CFE":stdlim
-            }
+            #"L_CFE":stdlim
+            #}
 
     labels = {"P_core":"core pressure $P_3$", 
             "T_channel":"channel temperature $T_1$",
@@ -403,7 +403,11 @@ if __name__ =="__main__":
     xvals = dict()
 
     base_core = H2(P=base["P_core"], T=base["T_core"])      # speed code up by not calculating on every single loop
-
+    r1 = .03
+    r2 = .045
+    mdot = .108
+    num_cells = 250
+    '''
     for key in vary:                    # iterate through properties we want to vary
         props = base.copy()             # reset all properties to base values
         lim = vary[key]                 # relative property value limits
@@ -411,9 +415,9 @@ if __name__ =="__main__":
         xvals[key] = np.arange(lim[0], lim[1]+1e-5, np.diff(lim)/n_pts)
         yvals[key] = []
         i = 0                           # counter
-        params = []
-        pool = multi.Pool(15)
+        # pool = multi.Pool(15)
         CFEs = []
+        results = []
         for x in xvals[key]:
             print(f"\n\tRELATIVE PROPERTY VALUE {key}: {x}")
             props[key] = x * base[key]              # adjust single parameter
@@ -426,19 +430,20 @@ if __name__ =="__main__":
             r6 = props["r5"] + props["d56"]         # compute r6
             i +=1
             
-            r1 = .03
-            r2 = .045
-            mdot = .108
-            num_cells = 250
+
             P_core = props["P_core"]
             
             N = props["N"]
             L = props["L_CFE"]
-            CFEs.append(CFE(r2,r2-r1,L,7, num_cells, T_P, mdot, N, P_core,BCs,PS_data_1,OG_power=7))
-        results = pool.map(solve, CFEs)
-        for index in range(len(results)):
-            R_1 = results[index]
-            D_1 = CFEs[index]
+
+            # CFEs.append()            
+            # results = pool.map(solve, CFEs)
+            # for index in range(len(results)):
+            #R_1 = results[index]
+            #D_1 = CFEs[index]
+
+            D_1 = CFE(r2,r2-r1,L,7, num_cells, T_P, mdot, N, P_core,BCs,PS_data_1,OG_power=7)
+            R_1 = solve(D_1)
 
             T_1 = R_1[0]
             M_1 = R_1[1]
@@ -456,8 +461,30 @@ if __name__ =="__main__":
             P_profile = R_1[6]
 
             mix_density = fuel_density * (1 - void) + prop_density * void
-            np.save(f"Better/d2_{key}_{i}.npy", mix_density)
-            np.save(f"Better/r2_{key}_{i}.npy", radius)
+            np.save(f"Better/d_{key}_{i}.npy", mix_density)
+            np.save(f"Better/r_{key}_{i}.npy", radius)
+    # get baseline parameters
+    '''
+    base_cfe = CFE(r2,r2-r1,base["L_CFE"],7, num_cells, T_P, mdot, base["N"], base["P_core"],BCs,PS_data_1,OG_power=7)
+    base_results = solve(base_cfe)
+    R_1 = base_results
+    T_1 = R_1[0]
+    M_1 = R_1[1]
+    X_1 = R_1[2]
+    QR_1 = R_1[3]
+    Q_1 = R_1[4]
+    x_1 = np.array(base_cfe.cell_center_radii)
+    temp = T_1
+    radius = np.array(x_1)
+    void = np.array(X_1)
+    fuel_density = np.array(M_1[5])
+    prop_density = np.array(R_1[5])
+    P_profile = R_1[6]
+
+
+    mix_density = fuel_density * (1 - void) + prop_density * void
+    np.save(f"Better/d_baseline3.npy", mix_density)
+    np.save(f"Better/r_baseline3.npy", radius)
 
     print("Design 1 Max Temp:",np.amax(T_1))
     print("Design 1 Max Void:",np.amax(X_1))

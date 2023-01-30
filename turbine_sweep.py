@@ -17,12 +17,39 @@ mpl.rc('xtick.minor', visible=True, size=1.5, width=0.5)
 mpl.rc('ytick.minor', visible=True, size=1.5, width=0.5)
 plt.rcParams['figure.constrained_layout.use'] =  True
 
-def turb_props(props, P1):
+base = {"P_core":10e6,
+        "T_channel":450,
+        "r5":56e-3,
+        "d56":8e-3,
+        "N":7000,
+        "nu_s":0.693,
+        "L_CFE":.84,
+        "T_core":3700}
+
+stdlim = [0.5, 2]
+
+vary = {"P_core":stdlim,
+        "T_channel":stdlim,
+        "r5":[0.93,1.5],
+        "d56":stdlim,
+        "N":stdlim,
+        "nu_s":[0.5,1.08],
+        "L_CFE":stdlim}
+
+
+P1vals = np.load("P1.npz", allow_pickle=True)
+mvals = np.load("uranium_mass.npz", allow_pickle=True)
+
+
+def turb_props(props, P1, m):
+    """Takes a property dictionary built for performing a generic parametric
+    sweep and turns it into a set of inputs for the find_turb function."""
     L_total = props["L_CFE"] + 0.1          # compute total length
     r6 = props["r5"] + props["d56"]         # compute r6
     statics = tfhs.static_cfe_inputs.copy()
     dynamics = tfhs.dynamic_turb_inputs.copy()
     statics["inner_radius"] = props["r5"]
+    statics["uranium_mass"] = m
     statics["outer_radius"] = r6
     statics["rpm"] = props["N"]
     statics["temp"] = props["T_channel"]
@@ -32,20 +59,21 @@ def turb_props(props, P1):
     return statics, dynamics, True
 
 def iter_param(base, key, x, n, parallel=True):
-    P1vals = np.load("P1.npz", allow_pickle=True)
-    props = base.copy()             # reset all properties to base values
     args = []
-    
+    props = base.copy()             # reset all properties to base values
+
     for j in range(len(x)):
         props[key] = x[j] * base[key]              # adjust single parameter
         if key in P1vals.keys():
             P1 = P1vals[key][j]
+            m = mvals[key][j]
         else:
             P1 = P1vals["baseline"]
-        args.append(turb_props(props, P1))
+            m = mvals["baseline"]
+        args.append(turb_props(props, P1, m))
 
     if parallel:
-        pool = Pool()
+        pool = Pool(14)
         out = pool.starmap(tfhs.find_turbine, args)
         pool.close()
         pool.join()
@@ -57,27 +85,7 @@ def iter_param(base, key, x, n, parallel=True):
 
     return out
 
-
 def parametric_sweep(parallel=True):
-    base = {"P_core":10e6,
-            "T_channel":450,
-            "r5":56e-3,
-            "d56":8e-3,
-            "N":7000,
-            "nu_s":0.693,
-            "L_CFE":.84,
-            "T_core":3700}
-
-    stdlim = [0.5, 2]
-
-    vary = {"P_core":stdlim,
-            "T_channel":stdlim,
-            "r5":[0.93,1.5],
-            "d56":stdlim,
-            "N":stdlim,
-            "nu_s":[0.5,1.08],
-            "L_CFE":stdlim}
-
     yvals = dict()
     xvals = dict()
     n_pts = 50
@@ -88,24 +96,31 @@ def parametric_sweep(parallel=True):
     return yvals
 
 if __name__=="__main__":
-    turbs = parametric_sweep(parallel=True)
+    turb_cfes = parametric_sweep(parallel=True)
     print("Turbine information collected")
-
-    eta = dict()
-    dh = dict()
-    radius = dict()
-    mass = dict()
-    for k,v in turbs.items():
-        eta[k]=[]; dh[k]=[]; radius[k]=[]; mass[k]=[];
-        for i in v:
-            eta[k].append(i["eta_ts_loss"])
-            dh[k].append(i["deltah_0"])
-            radius[k].append(i["r_4"])
+    turb_cfes["baseline"] = [tfhs.find_turbine(*turb_props(base, P1vals["baseline"], mvals["baseline"]))]
     
-    np.savez("eta_sweep_vs.npz", **eta)
-    np.savez("dh_sweep_vs.npz", **dh)
-    np.savez("radius_sweep_vs.npz", **radius)
+    savenames = ['eta', 'W_bear', 'W_visc', 'W', 'radius', 'mass', "N_s"]
+    outs = dict()
+    for s in savenames:
+        outs[s] = dict()
+    for k,v in turb_cfes.items():
+        for s in outs:
+            outs[s][k] = []
+        for turb, cfe in v:
+            outs['eta'][k].append(turb["eta_ts_loss"])
+            outs['radius'][k].append(turb["r_4"])
+            outs['N_s'][k].append(turb["N_s"])
+            outs['W'][k].append(cfe["work_rate"])
+            outs['W_bear'][k].append(cfe["M_bearing"] * cfe["omega"])
+            outs['W_visc'][k].append(cfe["M_visc"] * cfe["omega"])
+            outs['mass'][k].append(cfe["mass"])
 
+    for s in outs:
+        np.savez(f"turbine_sweep/{s}.npz", **outs[s])
+    
+    print("Export Done")
+    np.savez("turbine_cfe_sweep.npz", turb_cfes)
     print("Done!")
 
     
