@@ -48,6 +48,11 @@ press_vary = {"P_core":stdlim,
             "N":stdlim,
             "L_CFE":stdlim}
 
+pcore = {"P_core":stdlim}
+mdot = {"mdot":stdlim}
+N = {"N":stdlim}
+L = {"L_CFE":stdlim}
+
 labels = {"P_core":"core pressure $P_3$", 
         "T_channel":"channel temperature $T_1$",
         "mdot": "mass flow rate $\dot{m}$",
