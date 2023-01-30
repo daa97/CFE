@@ -16,7 +16,7 @@ plt.rcParams['figure.constrained_layout.use'] =  True
 base = {"P_core":10e6,
         "T_core":3700,
         "T_channel":450,
-        "mdot":.018,
+        "mdot":.108,
         "r1":30e-3,
         "r2":45e-3,
         "r3":49e-3,
