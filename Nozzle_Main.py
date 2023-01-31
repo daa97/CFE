@@ -13,6 +13,11 @@ from fluids import *
 import scipy.optimize
 import scipy.integrate as integ
 
+import os
+from config.definitions import ROOT_DIR
+#os.path.join(ROOT_DIR, 'data', 'mydata.json')
+
+
 class Contour:
     def __init__(self, thrust=[],idl_gamma = [], idl_MW=[], p_c=[],p_amb=[],T_c=[],e=[],A_t=[],new_geometry=[],X=[],Y=[],showplot=False):
         #Must specify EITHER
