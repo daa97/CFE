@@ -2,22 +2,26 @@ from Nozzle_Main import *
 
 #default_q_regen = get_q_nozzle() # default_q_regen is 794 W
 #ic(default_q_regen)
-
 #################################### TRADE STUDIES: WHAT HAPPENS IF I CHANGE ______? ################################
+
 #Optimization
 
-#chan_geo1 = {"k_w": 398, "t_w": .0254, "chan_width": .0254 * 1, "chan_depth": .0254 * .01, "chan_gap":.0254 * .01} #fat and short #previously 4030 before wall thickness
+chan_geo1 = {"k_w": 398, "t_w": .0254, "chan_width": .0254 * 1, "chan_depth": .0254 * .01, "chan_gap":.0254 * .01} #fat and short #previously 4030 before wall thickness
 #chan_geo12 = {"k_w": 398, "t_w": .00254, "chan_width": .0254 * 1, "chan_depth": .0254 * .01, "chan_gap":.0254 * .01} #fat and short 4090
 #chan_geo13 = {"k_w": 398, "t_w": .00254, "chan_width": .0254 * 1, "chan_depth": .0254 * 1/8, "chan_gap":.0254 * .01} #  fat fat skinny wall #4088
 #chan_geo14 = {"k_w": 398, "t_w": .00254, "chan_width": .0254 * 1/2, "chan_depth": .0254 * 1/2, "chan_gap":.0254 * .01} #  fat fat skinny wall #4598
-
 #chan_geo2 = {"k_w": 398, "t_w": .0254, "chan_width": .0254 * .01, "chan_depth": .0254 * 1, "chan_gap":.0254 * .01} #skinny and tall # 2540 before wall thickness
 #chan_geo22 = {"k_w": 398, "t_w": .00254, "chan_width": .0254 * .01, "chan_depth": .0254 * 1, "chan_gap":.0254 * .01} #skinny and tall # 2577
+
+q_regen = get_q_nozzle(chan_geo=chan_geo1, e=200)
+ic(q_regen)
 
 '''chan_geo3 = {"k_w": 398, "t_w": .00254, "chan_width": .0254 * 1/8, "chan_depth": .0254 * 1/8, "chan_gap":.0254 * .01} # medium medium skinny wall # 4730
 chan_geo32 = {"k_w": 398, "t_w": .00254, "chan_width": .0254 * 1, "chan_depth": .0254 * 1, "chan_gap":.0254 * .01} #  fat fat skinny wall 4078
 chan_geo33 = {"k_w": 398, "t_w": .00254, "chan_width": .0254 * 3/4, "chan_depth": .0254 * 3/4, "chan_gap":.0254 * .01} # medium medium skinny wall #4593
 chan_geo34 = {"k_w": 398, "t_w": .00254, "chan_width": .0254 * 1/16, "chan_depth": .0254 * 1/16, "chan_gap":.0254 * .01} # medium medium skinny wall #
+
+
 
 min_value = 1/16
 max_value = 3/4

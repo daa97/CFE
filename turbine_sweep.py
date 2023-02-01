@@ -6,8 +6,9 @@ from multiprocessing import Pool
 from os import cpu_count
 import prop_vary as pv
 
+base = pv.base
 vary = pv.vary
-
+print(vary)
 
 P1vals = np.load("P1.npz", allow_pickle=True)
 mvals = np.load("uranium_mass.npz", allow_pickle=True)
@@ -25,6 +26,7 @@ def turb_props(props, P1, m):
     statics["rpm"] = props["N"]
     statics["temp"] = props["T_channel"]
     statics["length"] = L_total
+    statics["mass_flow"] = props["mdot"]
     dynamics["v_s"] = props["nu_s"]
     statics["press"] = P1 / 1e6
     return statics, dynamics, True
