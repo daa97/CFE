@@ -27,13 +27,13 @@ nozzle_inputs = {
 
 static_cfe_inputs = {
     "inner_radius" : 0.056, #Channel inner radius [m]
-    "outer_radius" : 0.064, #Channel outer radius [m]
+    "outer_radius" : 0.059, #Channel outer radius [m]
     "length" : 0.94, #CFE channel length [m]
     "rpm" : 7000, #CFE inner SiC cylinder revolutions per minute
     "mass_flow" : 0.108, #CFE channel mass flow rate [kg s^-1]
     "uranium_mass":m_U["baseline"],
     "temp" : 450, #[K]
-    "press" : 13.754 #MPa - Turbine Inlet Pressure
+    "press" : 13.763 #MPa - Turbine Inlet Pressure
 } 
 
 dynamic_turb_inputs = {
@@ -41,7 +41,7 @@ dynamic_turb_inputs = {
     "eta_ts" : 0.9,
     "h_0ss" : 0,
     "N_s" : 0,
-    "v_s" : 0.695
+    "v_s" : 0.696
 }
 
 # def get_props(turb):
@@ -64,6 +64,7 @@ if __name__=="__main__":
     
     test_turb = find_turbine(static_inputs=static_cfe_inputs, dynamic_inputs=dynamic_turb_inputs)
     # test_turb.make_hub_and_shroud()
+    test_turb.print_turbine(opts)
 
 # noz.create_cascade()
 # noz.find_setting_angle()
