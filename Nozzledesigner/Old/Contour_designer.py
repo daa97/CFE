@@ -3,18 +3,6 @@ from matplotlib import pyplot as plt
 import numpy as np
 from icecream import ic
 
-A_t =
-L_star =
-theta_n =
-theta_e =
-cone_noz_perc =
-alpha =
-data_pts =
-
-p_c =
-T_c =
-e_c =
-
 
 class Contour:
     def __init__(self, p_c, T_c, A_t, e, start_geometry):

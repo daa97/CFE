@@ -178,9 +178,7 @@ class NozzleCEA:
                 plt.show(block=False)
 
 # Inputs:
-if not ("Updated" in os.getcwd()):
-    os.chdir(r"C:\Users\tdham\OneDrive - Georgia Institute of Technology\Years\Third\Fall\NASA\CFE-Thermal-main")
-H2 = Fluid("Hydrogen", prop_files)
+
 p_c = 10e6
 T_c = 3800
 chamber = H2(P=p_c, T=T_c)
