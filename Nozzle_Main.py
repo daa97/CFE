@@ -1,13 +1,5 @@
-from pathlib import Path
-import numpy as np
 from icecream import ic
-from matplotlib import pyplot as plt
-import os
 import subprocess as sp
-import math
-import sys
-
-from Nozzledesigner.Rocket_CEA import create_CEA_infile
 from Nozzledesigner.Ideal_rocket_perf import *
 from fluids import *
 import scipy.optimize
@@ -15,7 +7,6 @@ import scipy.integrate as integ
 
 import os
 from config.definitions import ROOT_DIR
-#os.path.join(ROOT_DIR, 'data', 'mydata.json')
 
 
 class Contour:
@@ -247,13 +238,13 @@ class NozzleCEA:
     def run_CEA(self,area_rat,supersonic):
         # Create CEA Input File
         from random import randint as rint
-        os.chdir(r"C:\Users\tdham\OneDrive - Georgia Institute of Technology\Years\Third\Fall\NASA\CFE-Thermal-main")
-        dir = "RCEAexec\\CEAexec-win\\"
+
         if supersonic == False:
             in_template = "rcea_sub.txt"
         else:
             in_template = "rcea_sup.txt"
 
+        dir=os.path.join(ROOT_DIR, 'RCEAexec', 'CEAexec-win\\')
         # Replace Input file  Area ratio, temperature, pressure, with relevant params
         with open(dir + in_template, mode='r') as f_in_template:
             contents = f_in_template.read()
@@ -268,7 +259,7 @@ class NozzleCEA:
         with open(dir + writename + '.inp', mode='w') as f_in:
             f_in.write(contents)
         infile = writename
-        os.chdir(r"C:\Users\tdham\OneDrive - Georgia Institute of Technology\Years\Third\Fall\NASA\CFE-Thermal-main\RCEAexec\CEAexec-win")
+        os.chdir(os.path.join(ROOT_DIR, 'RCEAexec', 'CEAexec-win'))
 
         # RUN CEA COMMAND:
         sp_status = sp.run(["echo", f"{infile}", "|", "FCEA2.exe"], stdout=sp.PIPE, stderr=sp.PIPE, shell=True)
@@ -380,7 +371,7 @@ class NozzleCEA:
     def exec_Nozzle_CEA(self):
         for A in range(len(self.area_rats)):
             self.run_CEA(self.area_rats[A],self.supersonic_check[A])
-            os.chdir(r"C:\Users\tdham\OneDrive - Georgia Institute of Technology\Years\Third\Fall\NASA\CFE-Thermal-main\RCEAexec\CEAexec-win")
+            os.chdir(os.path.join(ROOT_DIR, 'RCEAexec', 'CEAexec-win'))
             os.remove(self.cea_in_file)
             os.remove(self.cea_out_file)
 
@@ -462,7 +453,6 @@ class NozzleCEA:
             # coolant-side convective coefficient: h_L (coolant will start as liquid then become supercritical gas)
 
             # Coolant-Side Heat Transfer Coefficients
-
             '''nz_coolant = nz_coolant_start  # assuming one state
             k_L = nz_coolant.k
             rho_L = nz_coolant.rho
@@ -550,10 +540,7 @@ class NozzleCEA:
                 if i ==0:
                     nz_coolant = nz_coolant_start  # assuming one state
                 else:
-                    if not ("Updated" in os.getcwd()):
-                        os.chdir(
-                            r"C:\Users\tdham\OneDrive - Georgia Institute of Technology\Years\Third\Fall\NASA\CFE-Thermal-main")
-                    H2 = Fluid("Hydrogen", prop_files)
+
                     nz_coolant= H2(T=q_dot/(self.mdot*cp_L)+T_L, P=700 * 6894.76)   # Assume no pressure drop in channels for now # CHECK IF THIS ENERGY EQUATION IS VALID IS VALID
 
                 k_L = nz_coolant.k
@@ -634,11 +621,6 @@ class NozzleCEA:
             area_rats = Nozzle.area_rats
             gamma_c = Nozzle.eql_nz_props["GAMMAs"][0]
             rho_c = Nozzle.eql_nz_props["RHO, KG/CU M"][0]
-
-            if not ("Updated" in os.getcwd()):
-                os.chdir(r"C:\Users\tdham\OneDrive - Georgia Institute of Technology\Years\Third\Fall\NASA\CFE-Thermal-main")
-            H2 = Fluid("Hydrogen", prop_files)
-
             chamber_props = H2(T=Nozzle.T_c, P=Nozzle.p_c)
             gamma2 = chamber_props.Y
             ic(gamma_c)
@@ -732,9 +714,6 @@ class NozzleCEA:
 
 
 # =====================================THERMODYNAMIC CYCLE CODE=================================================
-if not ("Updated" in os.getcwd()):
-    os.chdir(r"C:\Users\tdham\OneDrive - Georgia Institute of Technology\Years\Third\Fall\NASA\CFE-Thermal-main")
-H2 = Fluid("Hydrogen", prop_files)
 
 default_w = .0254 * 1 / 8  # channel width (m)
 default_h = .0254 * 1 / 8  # channel depth (m)
