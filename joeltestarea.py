@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import turbine_design_baines as tdb
 
+
 P1 = np.load("P1.npz")
 m_U = np.load("uranium_mass.npz")
 
@@ -27,7 +28,7 @@ nozzle_inputs = {
 
 static_cfe_inputs = {
     "inner_radius" : 0.056, #Channel inner radius [m]
-    "outer_radius" : 0.059, #Channel outer radius [m]
+    "outer_radius" : 0.064, #Channel outer radius [m]
     "length" : 0.94, #CFE channel length [m]
     "rpm" : 7000, #CFE inner SiC cylinder revolutions per minute
     "mass_flow" : 0.108, #CFE channel mass flow rate [kg s^-1]
@@ -41,7 +42,7 @@ dynamic_turb_inputs = {
     "eta_ts" : 0.9,
     "h_0ss" : 0,
     "N_s" : 0,
-    "v_s" : 0.696
+    "v_s" : 0.695
 }
 
 # def get_props(turb):
@@ -61,9 +62,14 @@ def find_turbine(static_inputs, dynamic_inputs, dict_only=False):
     return test_turb
 
 if __name__=="__main__":
-    
+    test_cfe = tdb.CFE(static_cfe_inputs=static_cfe_inputs, dynamic_turb_inputs=dynamic_turb_inputs,i=1)
+    # nu_s = np.linspace(0.6,0.74,10)
+    # data = find_lotsa_turbines(nu_s,test_cfe)
+    # print(data)
+    # Ts = [300,450]
+    # tdb.plot_lotsa_turbines(Ts)
     test_turb = find_turbine(static_inputs=static_cfe_inputs, dynamic_inputs=dynamic_turb_inputs)
-    # test_turb.make_hub_and_shroud()
+    # # test_turb.make_hub_and_shroud()
     test_turb.print_turbine(opts)
 
 # noz.create_cascade()
