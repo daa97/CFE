@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import turbine_design_baines as tdb
 
+
 P1 = np.load("P1.npz")
 m_U = np.load("uranium_mass.npz")
 
@@ -33,7 +34,7 @@ static_cfe_inputs = {
     "mass_flow" : 0.108, #CFE channel mass flow rate [kg s^-1]
     "uranium_mass":m_U["baseline"],
     "temp" : 450, #[K]
-    "press" : 13.754 #MPa - Turbine Inlet Pressure
+    "press" : 13.763 #MPa - Turbine Inlet Pressure
 } 
 
 dynamic_turb_inputs = {
@@ -61,9 +62,15 @@ def find_turbine(static_inputs, dynamic_inputs, dict_only=False):
     return test_turb
 
 if __name__=="__main__":
-    
+    test_cfe = tdb.CFE(static_cfe_inputs=static_cfe_inputs, dynamic_turb_inputs=dynamic_turb_inputs,i=1)
+    # nu_s = np.linspace(0.6,0.74,10)
+    # data = find_lotsa_turbines(nu_s,test_cfe)
+    # print(data)
+    # Ts = [300,450]
+    # tdb.plot_lotsa_turbines(Ts)
     test_turb = find_turbine(static_inputs=static_cfe_inputs, dynamic_inputs=dynamic_turb_inputs)
-    # test_turb.make_hub_and_shroud()
+    # # test_turb.make_hub_and_shroud()
+    test_turb.print_turbine(opts)
 
 # noz.create_cascade()
 # noz.find_setting_angle()

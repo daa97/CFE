@@ -24,7 +24,7 @@ base = {"P_core":10e6,
         "d45":5e-3,
         "d56":3e-3,
         "N":7000,
-        "nu_s":0.695,
+        "nu_s":0.6961,
         "L_CFE":0.84}
 
 stdlim = [0.5, 2]
@@ -37,10 +37,10 @@ stdlim = [0.5, 2]
 vary = {"P_core":stdlim,
         "T_channel":stdlim,
         "mdot":stdlim,
-        "r5":[0.93,1.5],
+        "r5":[0.982,1.5],
         "d56":stdlim,
         "N":stdlim,
-        "nu_s":[0.5,1.07],
+        "nu_s":[0.6465,1.02],
         "L_CFE":stdlim}
 
 press_vary = {"P_core":stdlim,
@@ -59,19 +59,19 @@ labels = {"P_core":"core pressure $P_3$",
         "r5":"case radius $r_5$",
         "d56":"outer channel width $(r_6 - r_5)$",
         "N":"CFE rotation rate $\omega$",
-        "nu_s":"turbine sp. speed $\\nu_s$",
+        "nu_s":"turbine vel. ratio $\\nu_s$",
         "L_CFE":"CFE length $l$"}
 
 cols = {"P_core":"k",
         "T_channel":"b",
-        "r5":[1,0.9,0],
-        "d56":[.14, .75, .196],
+        "r5":"gold",
+        "d56":[.09, .75, .19],
         "mdot":"purple",
         "N":"red",
         "nu_s":"gray",
         "L_CFE":"hotpink"}
 
-def vary():
+def run_sweep():
     yvals = dict()
     xvals = dict()
 
