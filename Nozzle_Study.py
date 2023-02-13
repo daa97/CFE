@@ -2,10 +2,16 @@ from Nozzle_Main import *
 
 #default_q_regen = get_q_nozzle() # default_q_regen is 794 W
 #ic(default_q_regen)
+
+
+
+
+
+
 #################################### TRADE STUDIES: WHAT HAPPENS IF I CHANGE ______? ################################
 
 #Optimization
-
+'''
 chan_geo1 = {"k_w": 398, "t_w": .0254, "chan_width": .0254 * 1, "chan_depth": .0254 * .01, "chan_gap":.0254 * .01} #fat and short #previously 4030 before wall thickness
 #chan_geo12 = {"k_w": 398, "t_w": .00254, "chan_width": .0254 * 1, "chan_depth": .0254 * .01, "chan_gap":.0254 * .01} #fat and short 4090
 #chan_geo13 = {"k_w": 398, "t_w": .00254, "chan_width": .0254 * 1, "chan_depth": .0254 * 1/8, "chan_gap":.0254 * .01} #  fat fat skinny wall #4088
@@ -14,7 +20,7 @@ chan_geo1 = {"k_w": 398, "t_w": .0254, "chan_width": .0254 * 1, "chan_depth": .0
 #chan_geo22 = {"k_w": 398, "t_w": .00254, "chan_width": .0254 * .01, "chan_depth": .0254 * 1, "chan_gap":.0254 * .01} #skinny and tall # 2577
 
 q_regen = get_q_nozzle(chan_geo=chan_geo1, e=200)
-ic(q_regen)
+ic(q_regen)'''
 
 '''chan_geo3 = {"k_w": 398, "t_w": .00254, "chan_width": .0254 * 1/8, "chan_depth": .0254 * 1/8, "chan_gap":.0254 * .01} # medium medium skinny wall # 4730
 chan_geo32 = {"k_w": 398, "t_w": .00254, "chan_width": .0254 * 1, "chan_depth": .0254 * 1, "chan_gap":.0254 * .01} #  fat fat skinny wall 4078
@@ -51,8 +57,29 @@ ic(heat)'''
 
 
 #================================== STANDARD 1-D ISENTROPIC VERSUS ""+ NASA CEA =========================
-'''Nozzle.noz_heat.oneDIsentropic(Nozzle,showplots=True)
-plt.show()'''
+p_c=550*6894.76
+T_c=3800
+
+default_w = .0254 * 1 / 8  # channel width (m)
+default_h = .0254 * 1 / 8  # channel depth (m)
+default_g = .0254 * 1 / 8  # gap between channels (m)
+
+default_chan_geo = {"k_w": 398, "t_w": .00254, "chan_width": default_w, "chan_depth": default_h, "chan_gap":default_g}
+p_c=550*6894.76
+T_c=3800
+thrust = 10e3
+e=120
+mdot = 2.3
+chan_geo=default_chan_geo
+nz_cool_start = H2(T=120,P=700*6894.76)
+data_pts=25
+frozen=False
+chamber=H2(P=p_c,T=T_c)
+this_Contour = Contour(thrust=thrust,p_c=p_c,p_amb=0,idl_gamma=chamber.y,idl_MW=2, T_c=T_c,e=e, showplot=False, new_geometry={"data_pts": data_pts})
+Nozzle = NozzleCEA(this_Contour,T_c=T_c,p_c=p_c,mdot=mdot)
+Nozzle.exec_Nozzle_CEA()
+Nozzle.noz_heat.oneDIsentropic(Nozzle,showplots=True)
+plt.show()
 
 #============================================ NUMBER OF DATA POINTS  ================================================
 '''min_value = 10
