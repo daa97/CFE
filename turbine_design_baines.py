@@ -621,7 +621,7 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
         for ax in tri.flat:
             ax.set(xlabel='Velocity [m s^-1]', ylabel='Velocity [m s^-1]')
         plt.show()
-
+    
     def make_hub_and_shroud(self):
         n = 5
         N_p = 21 # Number of points used to make the hub and shroud curves
@@ -836,6 +836,14 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
         else:
             return dynamic_turb_inputs["v_s"]
 
+    def calc_bending_mode(self):
+        E = 211e+9 #Pa
+        rho = 8190 #kg/m3
+        nu_ratio = 0.284 
+
+        omega_n1 = 6.94 / (2 * np.pi * self.b_5**2) * np.sqrt((E * self.t_lead**3)/(12 * rho * (1-nu_ratio**2)))
+        return omega_n1
+        
 class nozzle:
     def __init__(self,nozzle_inputs,turb):
         self.N_n = 13 # Number of nozzle blades guess
