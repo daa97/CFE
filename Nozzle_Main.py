@@ -10,7 +10,7 @@ from config.definitions import ROOT_DIR
 
 
 class Contour:
-    def __init__(self, thrust=[],idl_gamma = [], idl_MW=[], p_c=[],p_amb=[],T_c=[],e=[],A_t=[],new_geometry=[],X=[],Y=[],showplot=False):
+    def __init__(self, thrust=[],idl_gamma=[], idl_MW=[], p_c=[],p_amb=[],T_c=[],e=[],A_t=[],new_geometry=[],X=[],Y=[],showplot=False):
         #Must specify EITHER
         # 1. thrust, ideal specific heat ratio (idl_gamma), ideal molecular weight (idl_MW), chamber pressure (p_c),
         # ambient pressure (p_amb), chamber temperature (T_c), and exit expansion area ratio (e) OR
@@ -76,40 +76,7 @@ class Contour:
         conv_cone_len = cone_length(conv_cone_angle, self.e_c, r_t, r_c)
         L_n = self.cone_noz_perc * cone_length(conv_cone_angle, self.e, r_t, r_e)
 
-        '''lmbda = (1+math.cos(self.alpha))/2
-
-        def cone_length(alpha,epsilon,r_t,r_e):
-            return (r_t * (math.sqrt(self.e) - 1) + r_e * (1/math.cos(self.alpha) - 1)) / math.tan(self.alpha)
-
-        #Converging section
-        V_c = self.L_star*self.A_t
-
-        d_c = math.sqrt(self.e_c)*d_t
-
-        r_c = d_c/2
-        conv_cone_angle = math.radians(20)
-        conv_cone_len = cone_length(conv_cone_angle, self.e_c,r_t,r_c)
-        conv_cone_vol = math.pi/3*conv_cone_len*(r_c**2+r_t**2+r_c*r_t)
-
-        V_c_cyl = V_c-conv_cone_vol
-        L_c_cyl = V_c_cyl/(self.e_c*self.A_t)
-
-        #Diverging section
-        
-
-        #N coordinates (point where it transitions to parabola
-        N_t = .385*r_t*math.sin(math.radians(30))
-
-d_c = math.sqrt(self.e_c)*d_t
-
-        r_c = d_c/2
-        N_a = r_t +.385*r_t*(1-math.cos(self.theta_n))
-        E_t = L_n
-        E_a = r_e'''
-
-
         # Region I
-
         r1 = 1.5*r_t
         th1 = np.linspace(-math.pi,-math.pi/2, int(math.floor(self.data_pts/3)))
         x1 = r1*np.cos(th1)
@@ -162,7 +129,6 @@ d_c = math.sqrt(self.e_c)*d_t
         x3 = A*y3**2+B*y3+C
 
         # Plots
-
         if self.showplot:
             plt.plot(x1, y1, label='1')
             plt.plot(x2, y2, label='2')
@@ -270,7 +236,6 @@ class NozzleCEA:
         for dictkey, dictval in eql_nz_props.items():
             if dictval !=[]:
                 eqlvalue = dictval[0]*self.prop_conv[dictkey]
-
                 self.eql_nz_props[dictkey].append(eqlvalue)
         for dictkey, dictval in fzn_nz_props.items():
             if dictval != []:
@@ -541,7 +506,7 @@ class NozzleCEA:
                     nz_coolant = nz_coolant_start  # assuming one state
                 else:
 
-                    nz_coolant= H2(T=q_dot/(self.mdot*cp_L)+T_L, P=700 * 6894.76)   # Assume no pressure drop in channels for now # CHECK IF THIS ENERGY EQUATION IS VALID IS VALID
+                    nz_coolant= H2(T=q_dot/(self.mdot*cp_L)+T_L, P=700 * 6894.76)   # Assume no pressure drop in channels for now
 
                 k_L = nz_coolant.k
                 rho_L = nz_coolant.rho
@@ -579,7 +544,7 @@ class NozzleCEA:
                 h_g_dist_hf = np.append(h_g_dist_hf, h_g)
 
 
-            # Heat TransferUsing High-Fidelity Coefficients:
+            # Heat Transfer Using High-Fidelity Coefficients:
 
             q_dot_total_hf = N_c*integ.trapezoid(y=q_dist_hf,x=Nozzle.X)*w  #multiply by w to get in units of W from W/m
             #( this assumes that the heat transfer is 1D and only is going through the channel area that is touching the
@@ -623,8 +588,7 @@ class NozzleCEA:
             rho_c = Nozzle.eql_nz_props["RHO, KG/CU M"][0]
             chamber_props = H2(T=Nozzle.T_c, P=Nozzle.p_c)
             gamma2 = chamber_props.Y
-            ic(gamma_c)
-            ic(gamma2)
+
             rho2 = chamber_props.rho
             ic(rho_c)
             ic(rho2)
@@ -694,19 +658,19 @@ class NozzleCEA:
                 axs[1].set(ylabel="Temperature (K)")
                 axs[1].plot(Nozzle.X, T_dist, '-ko',label="1-D")
                 axs[1].plot(Nozzle.X, T_dist_CEA_eql, '--r*', label="CEA, Shifting")
-                #axs[1].plot(Nozzle.X, T_dist_CEA_fzn, '--b', label="CEA, Frozen")
+                axs[1].plot(Nozzle.X, T_dist_CEA_fzn, '--b', label="CEA, Frozen")
                 plt.grid(which='both')
 
                 axs[2].set(ylabel="Velocity (m/s)")
                 axs[2].plot(Nozzle.X, V_dist, '-ko',label="1-D")
                 axs[2].plot(Nozzle.X, V_dist_CEA_eql, '--r*', label="CEA, Shifting")
-                #axs[2].plot(Nozzle.X, V_dist_CEA_fzn, '--b*', label="CEA, Frozen")
+                axs[2].plot(Nozzle.X, V_dist_CEA_fzn, '--b*', label="CEA, Frozen")
                 plt.grid(which='both')
 
                 axs[3].set(ylabel="Density (kg/m^3)")
                 axs[3].plot(Nozzle.X, rho_dist,'-ko',label="1-D")
                 axs[3].plot(Nozzle.X, rho_dist_CEA_eql, '--r*', label="CEA, Shifting")
-                #axs[3].plot(Nozzle.X, rho_dist_CEA_fzn, '--b*', label="CEA, Frozen")
+                axs[3].plot(Nozzle.X, rho_dist_CEA_fzn, '--b*', label="CEA, Frozen")
                 plt.grid(which='both')
                 plt.legend()
 

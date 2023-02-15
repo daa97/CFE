@@ -8,7 +8,6 @@ import prop_vary as pv
 
 base = pv.base
 vary = pv.vary
-print(vary)
 
 P1vals = np.load("P1.npz", allow_pickle=True)
 mvals = np.load("uranium_mass.npz", allow_pickle=True)
@@ -46,7 +45,7 @@ def iter_param(base, key, x, n, parallel=True):
         args.append(turb_props(props, P1, m))
 
     if parallel:
-        pool = Pool(14)
+        pool = Pool(15)
         out = pool.starmap(tfhs.find_turbine, args)
         pool.close()
         pool.join()
@@ -63,6 +62,7 @@ def parametric_sweep(parallel=True):
     xvals = dict()
     n_pts = 50
     for key in vary:                    # iterate through properties we want to vary
+        print("*"*10 + key + "*"*10)
         lim = vary[key]                 # relative property value limits
         xvals[key] = np.arange(lim[0], lim[1]+1e-5, np.diff(lim)/n_pts)
         yvals[key] = iter_param(base, key, xvals[key], n_pts, parallel=parallel)

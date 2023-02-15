@@ -40,7 +40,7 @@ vary = {"P_core":stdlim,
         "r5":[0.982,1.5],
         "d56":stdlim,
         "N":stdlim,
-        "nu_s":[0.5,1.07],
+        "nu_s":[0.6465,1.02],
         "L_CFE":stdlim}
 
 press_vary = {"P_core":stdlim,
