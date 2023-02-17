@@ -1,0 +1,142 @@
+
+ *******************************************************************************
+
+         NASA-GLENN CHEMICAL EQUILIBRIUM PROGRAM CEA2, MAY 21, 2004
+                   BY  BONNIE MCBRIDE AND SANFORD GORDON
+      REFS: NASA RP-1311, PART I, 1994 AND NASA RP-1311, PART II, 1996
+
+ *******************************************************************************
+
+
+
+ ### CEA analysis performed on Tue 29-Nov-2022 21:03:08
+  
+ # Problem Type: "Rocket" (Infinite Area Combustor)
+  
+ prob case=_______________9574 ro equilibrium frozen
+  
+ # Pressure (1 value):
+ p,psia= 550
+ # Subsonic Area Ratio (1 value):
+ subar= 1.5
+  
+ # You selected the following reactants:
+ reac
+ name H2                wt%=100.0000  t,k=3800.000
+  
+ # You selected these options for output:
+ # short version of output
+ output short
+ # Proportions of any products will be expressed as Mass Fractions.
+ output massf
+ # Heat will be expressed as siunits
+ output siunits
+  
+ # Input prepared by this script:/var/www/sites/cearun.grc.nasa.gov/cgi-bin/CEARU
+ N/prepareInputFile.cgi
+  
+ ### IMPORTANT:  The following line is the end of your CEA input file!
+ end
+
+
+
+
+
+              THEORETICAL ROCKET PERFORMANCE ASSUMING EQUILIBRIUM
+
+           COMPOSITION DURING EXPANSION FROM INFINITE AREA COMBUSTOR
+
+ Pin =   550.0 PSIA
+ CASE = _______________
+
+             REACTANT                    WT FRACTION      ENERGY      TEMP
+                                          (SEE NOTE)     KJ/KG-MOL      K  
+ NAME        H2                           1.0000000    119067.820   3800.000
+
+ O/F=    0.00000  %FUEL=  0.000000  R,EQ.RATIO= 0.000000  PHI,EQ.RATIO= 0.000000
+
+                 CHAMBER   THROAT     EXIT
+ Pinf/P            1.0000   1.7744   1.1210
+ P, BAR            37.921   21.371   33.829
+ T, K             3372.20  3102.11  3317.84
+ RHO, KG/CU M    2.6329-1 1.6325-1 2.3934-1
+ H, KJ/KG         59064.9  51185.5  57435.7
+ U, KJ/KG         44662.0  38094.5  43301.2
+ G, KJ/KG       -246213.2-229642.3-242921.9
+ S, KJ/(KG)(K)    90.5280  90.5280  90.5280
+
+ M, (1/n)           1.947    1.970    1.952
+ (dLV/dLP)t      -1.01714 -1.01131 -1.01590
+ (dLV/dLT)p        1.2818   1.2018   1.2657
+ Cp, KJ/(KG)(K)   38.6497  33.7425  37.7069
+ GAMMAs            1.1968   1.2038   1.1977
+ SON VEL,M/SEC     4151.8   3969.8   4114.5
+ MACH NUMBER        0.000    1.000    0.439
+
+ PERFORMANCE PARAMETERS
+
+ Ae/At                     1.00000   1.5000
+ CSTAR, M/SEC               5851.5   5851.5
+ CF                         0.6784   0.3085
+ Ivac, M/SEC                7267.4   9635.3
+ Isp, M/SEC                 3969.7   1805.1
+
+
+ MASS FRACTIONS
+
+ *H               0.03553  0.02316  0.03288
+ *H2              0.96447  0.97684  0.96712
+
+  * THERMODYNAMIC PROPERTIES FITTED TO 20000.K
+
+ NOTE. WEIGHT FRACTION OF FUEL IN TOTAL FUELS AND OF OXIDANT IN TOTAL OXIDANTS
+
+
+
+
+
+           THEORETICAL ROCKET PERFORMANCE ASSUMING FROZEN COMPOSITION
+
+ Pin =   550.0 PSIA
+ CASE = _______________
+
+             REACTANT                    WT FRACTION      ENERGY      TEMP
+                                          (SEE NOTE)     KJ/KG-MOL      K  
+ NAME        H2                           1.0000000    119067.820   3800.000
+
+ O/F=    0.00000  %FUEL=  0.000000  R,EQ.RATIO= 0.000000  PHI,EQ.RATIO= 0.000000
+
+                 CHAMBER   THROAT     EXIT
+ Pinf/P            1.0000   1.8344   1.1284
+ P, BAR            37.921   20.672   33.607
+ T, K             3372.20  2934.22  3280.98
+ RHO, KG/CU M    2.6329-1 1.6495-1 2.3982-1
+ H, KJ/KG         59064.9  50904.6  57349.2
+ U, KJ/KG         44662.0  38372.3  43335.9
+ G, KJ/KG       -246213.2-214724.8-239671.5
+ S, KJ/(KG)(K)    90.5280  90.5280  90.5280
+
+ M, (1/n)           1.947    1.947    1.947
+ Cp, KJ/(KG)(K)   18.8545  18.4001  18.7644
+ GAMMAs            1.2929   1.3023   1.2947
+ SON VEL,M/SEC     4315.2   4039.9   4259.5
+ MACH NUMBER        0.000    1.000    0.435
+
+ PERFORMANCE PARAMETERS
+
+ Ae/At                      1.0000   1.5000
+ CSTAR, M/SEC               5690.6   5690.6
+ CF                         0.7099   0.3255
+ Ivac, M/SEC                7142.0   9417.3
+ Isp, M/SEC                 4039.9   1852.4
+
+ MASS FRACTIONS
+
+ *H              0.03553   *H2             0.96447
+
+  * THERMODYNAMIC PROPERTIES FITTED TO 20000.K
+
+ NOTE. WEIGHT FRACTION OF FUEL IN TOTAL FUELS AND OF OXIDANT IN TOTAL OXIDANTS
+
+
+

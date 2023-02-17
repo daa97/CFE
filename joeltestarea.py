@@ -71,7 +71,9 @@ if __name__=="__main__":
     test_turb = find_turbine(static_inputs=static_cfe_inputs, dynamic_inputs=dynamic_turb_inputs)
     # # test_turb.make_hub_and_shroud()
     test_turb.print_turbine(opts)
-
+    BM = test_turb.calc_bending_moment()
+    print("1st Bending Moment",BM)
+    
 # noz.create_cascade()
 # noz.find_setting_angle()
 # noz_out = noz.calc_naca_profile()
