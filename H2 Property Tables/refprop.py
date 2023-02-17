@@ -9,17 +9,12 @@ RP.SETPATHdll(lib)
 SI = RP.GETENUMdll(0,"MASS BASE SI").iEnum
 outprops = ["T", "P", "D", "V", "E", "H", "S", "CP", "CP/CV", "W", "M", "VIS", "TCX", "PRANDTL", "G"]
 
-def props(P,T):      # find properties
-    r = RP.REFPROPdll("HYDROGEN","TP", ";".join(outprops), SI, 1,0,T,P, [1.])
+def props(name, P,T):      # find properties
+    r = RP.REFPROPdll(name,"TP", ";".join(outprops), SI, 1,0,T,P, [1.])
     assert r.ierr<1, f"Fatal REFPROP error code {RP.ERRMSGdll(r.ierr)} @ P={P}, T={T}"
     o = r.Output[:len(outprops)]           
     return dict(zip(outprops, o))
 
-n=40
-trunc = lambda x: round(x,min(-int(np.floor(np.log10(abs(x))))+4,0))
-P = np.array([trunc(10**(x/n)) for x in range(2*n,int(7.5*n)+1)]).transpose()
-print(max(P)/1e6)
-T = np.arange(25, 1505, 5, dtype=int)
 
 def tabulate(dictionary, P, T):
     # set up first row and first column containing pressure and temperature values
@@ -49,22 +44,30 @@ def tabulate(dictionary, P, T):
             tables[key]=tab
     return tables
 
-vals = dict()
-for op in outprops:
-    vals[op] = []
+if __name__=="__main__":
+    n=40
+    trunc = lambda x: round(x,min(-int(np.floor(np.log10(abs(x))))+4,0))
+    P = np.array([trunc(10**(x/n)) for x in range(2*n,int(7.5*n)+1)]).transpose()
+    print(max(P)/1e6)
+    T = np.arange(25, 1505, 5, dtype=int)
+    fluid = "AIR"
 
-for Pi in P:
-    for Ti in T:
-        out = props(P=Pi,T=Ti)
-        for k,v in out.items():
-            vals[k].append(v)
-        if Pi % 100000 == 0 and Ti % 100==0:
-            if Ti==100:
-                print("*"*50)
-            l = [f"{k}={v:.1f}" for k,v in out.items()]
-            print(f"|".join(l))
+    vals = dict()
+    for op in outprops:
+        vals[op] = []
+
+    for Pi in P:
+        for Ti in T:
+            out = props(name=fluid, P=Pi,T=Ti)
+            for k,v in out.items():
+                vals[k].append(v)
+            if Pi % 100000 == 0 and Ti % 100==0:
+                if Ti==100:
+                    print("*"*50)
+                l = [f"{k}={v:.1f}" for k,v in out.items()]
+                print(f"|".join(l))
 
 
 
-np.savez("refprops.npz", **tabulate(vals, P, T))
+    np.savez("refprops.npz", **tabulate(vals, P, T))
 
