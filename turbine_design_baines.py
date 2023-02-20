@@ -302,7 +302,25 @@ class turbine:
         self.load_coef = self.deltah_0 / (self.U_4**2)
         self.D_s = 2 * self.r_4 * (self.h_0ss)**0.25 / self.Q**0.5
         rotor_eff = (self.state_04.h - self.state_05.h) / (self.state_04.h - self.state_5ss.h)
-        
+
+        self.rotor_geom = {
+            "inlet radius": self.r_4,
+            "inlet blade height": self.b_4,
+            "inlet blade angle": self.beta_4,
+            "outlet hub radius":self.r_h5,
+            "outlet shroud radius": self.r_s5,
+            "outlet blade height":self.b_5,
+            "outlet blade angle":self.beta_5,
+            "outlet hub blade angle": self.beta_h5,
+            "outlet shroud blade angle": self.beta_s5,
+            "axial length": self.z_r ,
+            "leading edge thickness":self.t_lead,
+            "trailing edge thickness": self.t_trail,
+            "Number of rotor blades": self.n_r-2,
+            "Stator outlet radius": self.r_3,
+            "Stator inlet radius": self.r_2
+        }
+
     def turbine_feasibility_checks(self):
         results = []
         VR1 = self.C_m5/self.U_4
@@ -846,8 +864,8 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
         
 class nozzle:
     def __init__(self,nozzle_inputs,turb):
-        self.N_n = 13 # Number of nozzle blades guess
-        self.N_p_n = 20
+        self.N_n = nozzle_inputs["num_stators"] # Number of nozzle blades guess
+        self.N_p_n = 100
         self.turb = turb
         self.sc = nozzle_inputs["sc"]
         self.theta = nozzle_inputs["camber angle"]
@@ -871,7 +889,7 @@ class nozzle:
         rho_3_check = self.state_03.rho
         while rho_3_check - rho_3_guess != 0:
             rho_3_guess = rho_3_check
-            C_m3 = turb.CFE.mass_flow / (2 * np.pi * self.r_3 * self.b_3 * rho_3_guess)
+            C_m3 = turb.mass_flow / (2 * np.pi * self.r_3 * self.b_3 * rho_3_guess)
             C_3 = np.sqrt(C_m3**2 + self.C_theta3**2)
             h_3 = self.h_03 - 0.5 * C_3**2
             s_3 = self.state_03.s
@@ -881,14 +899,16 @@ class nozzle:
         self.C_m3 = C_m3
         self.state_3 = state_3
         self.C_3 = C_3
-        self.alpha_3_rad =np.pi/2 - np.abs(np.arctan(self.C_theta3/self.C_m3))
+
+        self.alpha_3_rad = np.abs(np.arctan(self.C_m3/self.C_theta3))
         self.alpha_3 = self.alpha_3_rad * 180 / np.pi
         print(self.alpha_3)
         self.d_3 = 2 * np.pi * self.r_3 / self.N_n # Pitch is usually s but since s is entropy I am using d
         print(self.d_3)
         self.o_3 = self.d_3 * np.sin(self.alpha_3_rad)
-        print(self.o_3)
+        print("throat width:",self.o_3)
         self.c = 1/self.sc * self.d_3
+        print("chord len:",self.c)
 
         naca_output = self.calc_naca_profile()
         self.xcs = naca_output[0]
@@ -897,15 +917,44 @@ class nozzle:
         self.naca_chi = naca_output[2]
         self.naca_suc_surf = naca_output[3]
         self.naca_pres_surf = naca_output[4]
-
+        
         self.gamma_3 = self.find_setting_angle()
+        self.nozzle_blade = self.create_cascade(self.gamma_3,True)
         self.gamma_2 = np.arccos(self.r_3 * np.cos(self.gamma_3) / self.r_2)
         print("Gamma 3:",self.gamma_3*180/np.pi)
         self.beta_3b = self.gamma_3 - self.naca_chi[-1]
         self.beta_2b = self.gamma_2 - self.naca_chi[0]
         print(self.beta_2b*180/np.pi)
+        alp_2_geom = self.find_alpha_2()
+        self.alpha_2_rad = alp_2_geom[0]
+        self.L = alp_2_geom[1]
+        self.i_star = alp_2_geom[2]
+        self.gammas = alp_2_geom[3]
+        self.betas = alp_2_geom[4]
 
-        self.alpha_2 = self.find_alpha_2()
+        self.state_02 = self.turb.state_01
+        rho_2_guess = 0
+        rho_2_check = self.state_02.rho
+        while rho_2_check - rho_2_guess != 0:
+            rho_2_guess = rho_2_check
+            self.C_m2 = turb.mass_flow / (2 * np.pi * self.r_2 * self.b_3 * rho_2_guess)
+            self.C_theta2 = np.abs(self.C_m2/np.tan(self.alpha_2_rad))
+            self.C_2 = np.sqrt(self.C_m2**2 + self.C_theta2**2)
+            h_2 = self.state_02.h - 0.5 * self.C_2**2
+            self.s_2 = self.state_02.s
+            self.state_2 = H2(s=self.s_2,h=h_2)
+            rho_2_check = self.state_2.rho
+        print("C_3:",self.C_3)
+        print("C_2:",self.C_2)
+        self.stator_geom = {
+            "suction surface" : self.nozzle_blade[0],
+            "pressure surface" : self.nozzle_blade[1],
+            "setting angles" : self.gammas,
+            "blade angles" : self.betas,
+            "ideal incidence angle" : self.i_star,
+            "flow outlet angle" : self.alpha_3_rad,
+            "flow inlet angle" :self.alpha_2_rad
+        }
         
     def calc_naca_profile(self):
         N_p_n = self.N_p_n
@@ -916,17 +965,21 @@ class nozzle:
 
         xcs = np.linspace(0,self.c,N_p_n)
         ycs = np.zeros((N_p_n,))
-        print(np.tan(self.theta))
-        print((self.ac - self.ac**2 - 3/16))
-        print(1 + (4 * np.tan(self.theta))**2 * (self.ac - self.ac**2 - 3/16))
-        print((4 * np.tan(self.theta)))
+        # print(np.tan(self.theta))
+        # print((self.ac - self.ac**2 - 3/16))
+        # print(1 + (4 * np.tan(self.theta))**2 * (self.ac - self.ac**2 - 3/16))
+        # print((4 * np.tan(self.theta)))
         bc = (np.sqrt(1 + (4 * np.tan(self.theta))**2 * (self.ac - self.ac**2 - 3/16))-1) / (4 * np.tan(self.theta))
         b = bc*self.c
+        # print(b)
         a = self.ac * self.c
-        # print(b_div_c)
+        # print(a)
+        # print("bdivc:",bc)
         chi = np.zeros((N_p_n,1))
         chi[0] = np.arctan((4 * b) / (4*a - self.c))
+        print("Chi_2",chi[0])
         chi[-1] = np.arctan((4* b) / (3*self.c - 4*a))
+        print("Chi_3:",chi[-1])
         check[0] = chi[0] * 180 / np.pi
         check[-1] = chi[-1] * 180 / np.pi
         for i,xc in enumerate(xcs):
@@ -993,7 +1046,7 @@ class nozzle:
         # print(chi)
         return [xcs,ycs,chi,suc,pres]
 
-    def create_cascade(self,gam_guess):
+    def create_cascade(self,gam_guess,final):
         rot_cam = np.zeros((self.N_p_n,2))
         rot_suc = np.zeros((self.N_p_n,2))
         rot_pres = np.zeros((self.N_p_n,2))
@@ -1045,20 +1098,21 @@ class nozzle:
         throatx = [min_point[0],min_d_point[0]]
         throaty = [min_point[1],min_d_point[1]]
 
-        thetas = np.linspace(0, 2 * np.pi, num = 100)
-        circ = np.zeros((100,2))
-        for i,theta in enumerate(thetas):
-            circ[i,0] = self.r_3 * (np.cos(theta))
-            circ[i,1] = self.r_3 * (np.sin(theta))
-        plt.plot(throatx,throaty,color="r")
-        plt.plot(circ[:,0],circ[:,1])
-        plt.plot(blade_2_suc[:,0],blade_2_suc[:,1])
-        plt.plot(blade_2_pres[:,0],blade_2_pres[:,1])
-        plt.plot(blade_2_cam[:,0],blade_2_cam[:,1])
-        plt.plot(rot_cam[:,0],rot_cam[:,1])
-        plt.plot(rot_suc[:,0],rot_suc[:,1])
-        plt.plot(rot_pres[:,0],rot_pres[:,1])
-        plt.show()
+        if final ==True:
+            thetas = np.linspace(0, 2 * np.pi, num = 100)
+            circ = np.zeros((100,2))
+            for i,theta in enumerate(thetas):
+                circ[i,0] = self.r_3 * (np.cos(theta))
+                circ[i,1] = self.r_3 * (np.sin(theta))
+            plt.plot(throatx,throaty,color="r")
+            plt.plot(circ[:,0],circ[:,1])
+            plt.plot(blade_2_suc[:,0],blade_2_suc[:,1])
+            plt.plot(blade_2_pres[:,0],blade_2_pres[:,1])
+            plt.plot(blade_2_cam[:,0],blade_2_cam[:,1])
+            plt.plot(rot_cam[:,0],rot_cam[:,1])
+            plt.plot(rot_suc[:,0],rot_suc[:,1])
+            plt.plot(rot_pres[:,0],rot_pres[:,1])
+            plt.show()
 
         return [rot_suc,rot_pres,rot_cam,min_d,min_point,min_d_point]
 
@@ -1067,46 +1121,48 @@ class nozzle:
         print("Throat width:",throat_width)
         gam = self.gam_guess
         print("gam:",gam)
-        rotated_blade = self.create_cascade(gam)
+        rotated_blade = self.create_cascade(gam,False)
         throat_width_guess = rotated_blade[3]
         print("o:",throat_width_guess)
         while np.round(throat_width,4) != np.round(throat_width_guess,4):
             gam = np.arcsin(np.sin(gam)*(throat_width/throat_width_guess))
-            print("gamma:",gam)
-            rotated_blade = self.create_cascade(gam)
+            # print("gamma:",gam*180/np.pi)
+            rotated_blade = self.create_cascade(gam,False)
             throat_width_guess = rotated_blade[3]
-            print("o:",throat_width_guess)
+            # print("o:",throat_width_guess)
         return gam
 
     def find_alpha_2(self):
-        r = np.linspace(self.r_2,self.r_3,self.N_p_n)
+        r = np.linspace(self.r_3,self.r_2,self.N_p_n)
         gammas = np.zeros((self.N_p_n,))
         betas = np.zeros((self.N_p_n,))
-        gammas[0] = self.gamma_2
-        betas[0] = self.beta_2b
+        gammas[0] = self.gamma_3
+        betas[0] = self.beta_3b
         L = np.zeros((self.N_p_n))
         for i,gamma in enumerate(gammas):
             if i > 0:
                 gammas[i] = np.arccos(self.r_3 * np.cos(self.gamma_3) / r[i])
                 betas[i] = gammas[i] - self.naca_chi[i]
+        gammas[-1] = self.gamma_2
+        betas[-1] = self.beta_2b
         print("Gammas")
-        print(gammas)
+        print(np.multiply(gammas,180/np.pi))
         print("Betas")
         print(betas)
         for i in range(len(L)):
             if i > 0:
                 L[i] = L[i-1] + (r[i]-r[i-1])/(np.sin((betas[i])))
         print(L)
-        i_star_1 = (3.6 * np.sqrt(10*self.t_2c*self.c/L[-1]*-1) + np.abs((self.beta_3b-self.beta_2b)/3.4))
-        i_star_2 = np.sqrt(-1*L[-1]/(self.sc*self.c))
-        i_star_3 = np.abs(self.beta_3b-self.beta_2b)
-        i_star = i_star_1*i_star_2-i_star_3
+        i_star_1 = (3.6 * np.sqrt(10*self.t_2c*self.c/L[-1]) + 180/np.pi*np.abs((self.beta_3b-self.beta_2b)/3.4))
+        i_star_2 = np.sqrt(L[-1]/(self.sc*self.c))
+        i_star_3 = 180/np.pi*np.abs(self.beta_3b-self.beta_2b)/2
+        i_star = (i_star_1*i_star_2-i_star_3) * np.pi/180
         print(i_star*180/np.pi)
 
         alpha_2 = self.beta_2b - i_star * np.sign(self.beta_3b-self.beta_2b)
-        print(alpha_2*180/np.pi)
+        print(90-alpha_2*180/np.pi)
 
-        return alpha_2
+        return [alpha_2,L,i_star,gammas,betas]
 
     def plot_naca_norm(self):
         # FIXME - Make this defined within the nozzle class
@@ -1136,6 +1192,16 @@ class nozzle:
         # plt.ylim([-0.1,0.1])
         # plt.show()
         pass
+
+    def nozzle_eval(self):
+        R_OL = self.N_n * (self.gamma_2-self.gamma_3) / (2*np.pi)
+        print("R_OL:",R_OL)
+        deltaC_max = 4*np.pi * (self.r_3 * self.C_theta3 - self.r_2 * self.C_theta2) / (self.c * self.N_n)
+        print("Delta C max:",deltaC_max)
+
+        BL_check = 2 * deltaC_max / (self.C_2 + self.C_3)
+        print("Blade Loading:",BL_check)
+
 
 def rotate_blade_point(point,gam_guess,c,r_3):
     rot_point = np.zeros((2,))

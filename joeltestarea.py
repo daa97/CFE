@@ -16,14 +16,15 @@ opts = {
 
 nozzle_inputs = {
         "radius ratio" : 1.1,
-        "camber angle" : np.pi/6,
-        "ac" : 0.25,
+        "camber angle" : 0.0000001,
+        "ac" : 0.3,
         "t_2c" : 0.025,
-        "t_3c" : 0.012,
+        "t_3c" : 0.02,
         "t_maxc" : 0.06,
         "dc" : 0.4,
         "sc" : 0.75,
-        "setting angle" : 10/180*np.pi
+        "setting angle" : 10/180*np.pi,
+        "num_stators" : 15
     }
 
 static_cfe_inputs = {
@@ -55,6 +56,7 @@ dynamic_turb_inputs = {
 def find_turbine(static_inputs, dynamic_inputs, dict_only=False):
     test_cfe = tdb.CFE(static_inputs,dynamic_inputs,1)
     init_turb = tdb.turbine(test_cfe.static_turb_inputs,dynamic_inputs,1)
+    test_turb = init_turb
     test_turb = tdb.find_turb(test_cfe,init_turb)
     # if dict_only:
     #     test_turb = get_props(test_turb)
@@ -71,8 +73,9 @@ if __name__=="__main__":
     test_turb = find_turbine(static_inputs=static_cfe_inputs, dynamic_inputs=dynamic_turb_inputs)
     # # test_turb.make_hub_and_shroud()
     test_turb.print_turbine(opts)
-    BM = test_turb.calc_bending_moment()
-    print("1st Bending Moment",BM)
+    noz = tdb.nozzle(nozzle_inputs,test_turb)
+    noz.nozzle_eval()
+
     
 # noz.create_cascade()
 # noz.find_setting_angle()
