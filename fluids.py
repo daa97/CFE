@@ -2,7 +2,7 @@ import numpy as np
 import csv
 from scipy.interpolate import CubicSpline, PPoly
 import matplotlib.pyplot as plt
-import os.path
+import os
 
 debug = False
 extra = False
@@ -391,7 +391,6 @@ class Fluid:
         `pump_exit = H2.state(P=5, T=800); print(pump_exit.h)`
         `plt.plot(range(1, 5), [H2.state(pressure=Pi, s=1800).v for Pi in range(1, 5)])`
         '''
-        
         if len(kwargs)==2:
             kw1 = list(kwargs.keys())[0]
             dbp("KWARGS:", kwargs)
@@ -410,12 +409,22 @@ class Fluid:
             raise ValueError("Input properties not recognized")
         return FluidState(self, input_props, linear=linear)
 
+class FluidsListClass:
+    def __init__(self):
+        maindir = "fluidprops" # Directory of csv property files
+        self.prop_files = dict()
+        for sub in [f.path for f in os.scandir(maindir) if f.is_dir()]:
+            f = sub.split("\\")[-1]
+            self.prop_files[f] = dict()
+            for file in os.listdir(sub):
+                tag = file.split(".")[0]
+                self.prop_files[f][tag] = os.path.join(sub, file)
+    def __getattr__(self, __name: str) -> Fluid:
+        if __name=="H2":
+            return Fluid("Hydrogen", self.prop_files["Hydrogen"])
+        elif __name=="Air":
+            return Fluid("Air", self.prop_files["Air"])
 
-dir = "H2 Property Tables\\Updated" # Directory of csv property files
-hydrogen_files = dict()
-for file in os.listdir(dir):
-    tag = file.split(".")[0]
-    hydrogen_files[tag] = os.path.join(dir, file)
 
-H2 = Fluid("Hydrogen", hydrogen_files)
+FluidsList = FluidsListClass()
 

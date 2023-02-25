@@ -1,4 +1,4 @@
-from fluids import H2
+from fluids import FluidsList
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -75,7 +75,7 @@ def run_sweep():
     yvals = dict()
     xvals = dict()
 
-    base_core = H2(P=base["P_core"], T=base["T_core"])      # speed code up by not calculating on every single loop
+    base_core = FluidsList.H2(P=base["P_core"], T=base["T_core"])      # speed code up by not calculating on every single loop
 
     for key in vary:                    # iterate through properties we want to vary
         props = base.copy()             # reset all properties to base values
@@ -87,7 +87,7 @@ def run_sweep():
             props[key] = x * base[key]              # adjust single parameter
             L_total = props["L_CFE"] + 0.1          # compute total length
             if key=="P_core" or key=="T_core":      # check if core state needs adjustment
-                core = H2(P=props["P_core"], T=props["T_core"])
+                core = FluidsList.H2(P=props["P_core"], T=props["T_core"])
             else:
                 core = base_core
             omega = props["N"] * np.pi/30           # compute omega

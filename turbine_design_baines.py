@@ -2,9 +2,7 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import scipy.interpolate as inter
-import csv
-import time
-from fluids import *
+from cfe_model import CFE
 import matplotlib as mpl
 mpl.rc('font', family='Times New Roman',size="10")
 mpl.rc('figure', figsize=(4.8,3.6))
@@ -41,7 +39,6 @@ nozzle_inputs = {
         "setting angle" : 10/180*np.pi
     }
 
-
 dynamic_turb_inputs = {
     "PR_ts" : 1.0008,
     "eta_ts" : 0.9,
@@ -50,141 +47,20 @@ dynamic_turb_inputs = {
     "v_s" : 0.696
 }
 
-class CFE:
-    def __init__(self,static_cfe_inputs,dynamic_turb_inputs,i):
-
-        self.i = i
-        self.static_cfe_inputs = static_cfe_inputs
-        """ Entry channel fluid properties """
-        self.T_in = static_cfe_inputs["temp"] #Temperature [K]
-        self.P_in = static_cfe_inputs["press"] * 1e6
-        self.P_out = static_cfe_inputs["press"] / dynamic_turb_inputs["PR_ts"] * 1e6
-        # print("CFE Outlet Pressure:",self.P_out/1e6,"[MPa]")
-        self.cfe_state = H2(p=self.P_in,t = self.T_in)
-        self.gamma = self.cfe_state.gamma
-        T = self.T_in
-        self.mu = self.cfe_state.mu
-        self.rho = self.cfe_state.rho #Density, [kg/m^3]
-        self.nu = self.mu/self.rho #Kinematic viscosity [m^2 s^-1]
-        
-        """ Entry channel geometric properties """
-        self.R_i = static_cfe_inputs["inner_radius"] #CFE channel inner radius [m]
-        self.R_o = static_cfe_inputs["outer_radius"] #CFE channel outer radius [m]
-        self.uranium_mass = static_cfe_inputs["uranium_mass"]
-        self.annulus_area = np.pi * (self.R_o**2 - self.R_i**2) #CFE channel annulus area [m^2]
-        self.h = self.R_o - self.R_i #CFE channel thickness [m]
-        self.eta = self.R_i/self.R_o #CFE channel radius ratio
-        self.L = static_cfe_inputs["length"] #CFE Channel length [m]
-        
-        """ CFE Turbine requirements and inputs"""
-        self.mass_flow = static_cfe_inputs["mass_flow"] #Mass Flow Rate [kg/s]
-        self.omega = static_cfe_inputs["rpm"]*np.pi/30 #Angular Velocity [s^-1]
-        self.work_rate = self.calc_work_rate()  #Power requirement for turbine [W]
-        st_turb_inputs = self.calc_static_turb_inputs()
-        # print(55 *static_cfe_inputs["rpm"]/7000) # checking the bearing resistance relative to rpm
-        self.static_turb_inputs = {
-            "R_i" : self.R_i,
-            "R_o" : self.R_o,
-            "T_01" : st_turb_inputs[0],
-            "C_m1" : st_turb_inputs[1],
-            "C_theta1" : st_turb_inputs[2],
-            "P_01" : st_turb_inputs[3],
-            "work_rate" : self.work_rate,
-            "mass_flow" : self.mass_flow,
-            "omega" : self.omega
-        }
-
-    def calc_mass(self):
-        # TODO: add turbine mass
-        PM_porosity = 0.36
-        rho_SiC = 3100.2
-        rho_PM = rho_SiC * (1-PM_porosity)
-        m_PM = self.L * np.pi * (.049**2 - .045**2) * rho_PM
-
-        alpha_HR1 =  (0.008/(1000-70))*(9/5)          # from NASA report, with converting F to C
-        rho_case = 8070 /(1 + alpha_HR1*(self.T_in - 298.15))**3
-        ri_case = self.R_i - .005                   # 5 mm thick case
-        m_case = self.L * np.pi * (self.R_i**2 - ri_case**2) * rho_case
-
-        self.mass = m_case + m_PM + self.uranium_mass
-        return self.mass
-    
-    def calc_bearing_moment(self):
-        fric_coeff = .0015
-        base_load = 450
-        TWR = 1.3
-        diams = [.020, .020, .060]
-
-        load = base_load + (TWR * 9.806 * self.calc_mass())
-        M1 = fric_coeff * (diams[0]/2) * load       # loaded bearing
-        M2 = fric_coeff * (diams[1]/2) * base_load  # unloaded bearing
-        M3 = fric_coeff * (diams[2]/2) * base_load  # unloaded bearing
-        self.M_bearing = M1 + M2 + M3
-        return self.M_bearing
-
-    def calc_visc_moment(self):
-        Q = self.mass_flow/self.cfe_state.rho
-        A = np.pi * (self.R_o**2 - self.R_i**2)
-        U = Q/A
-        Re_w = self.omega * self.R_i * (self.R_o - self.R_i) / self.nu
-        Re_a = U * (self.R_o - self.R_i) / self.nu
-        #print(f"Re w, a: {Re_w:,.1f}, {Re_a:,.1f}")
-        lR = np.log10(Re_w)
-        lewis_eta = 0.15999/0.22085
-        lewis_G_factor = 4*np.pi*lewis_eta/((1-lewis_eta)*(1-lewis_eta**2))
-        C0 = np.log10(lewis_G_factor)
-        if 2600<=Re_w<=13e3:
-            exp = .2005*lR**3 - 1.970*lR**2 + (7.775-1)*lR - 5.516 - C0
-        elif 13e3<Re_w<=1e6:
-            exp = -.006360*lR**3 + .1349*lR**2 + (.8850-1)*lR + 1.610 - C0
-        else:
-            raise ValueError("Rotational Reynolds number out of range!")
-        lewis_Nu = 10**exp
-        Nu = 1.1* lewis_Nu      # adjustment for axial flow
-        #print(f"Nu: {Nu:.4f}")
-        Mlam = 4*np.pi*self.cfe_state.mu*self.L*self.omega / (self.R_i**(-2) - self.R_o**(-2))
-        #print(f"Wlam: {Mlam*self.omega:.4f}")
-        self.M_visc = Nu*Mlam
-        #print(f"W_visc: {self.M_visc*self.omega}")
-        return self.M_visc
-
-    def calc_work_rate(self):
-        """Calculates the required work rate of the turbine based on viscous
-        losses from shear at the CFE surface. This calculation is an 
-        amalgamation of various papers of torque from taylor-couette flow.
-        The correlation for non-dimensional torque comes from Lewis 1999.
-        """
-        M_bearings = self.calc_bearing_moment()
-        M_visc = self.calc_visc_moment()        
-        M = M_bearings + M_visc
-        work = M * self.omega
-        return work
-
-    def calc_static_turb_inputs(self):
-        U_thetaB = self.omega * self.R_i**2 / (self.R_o + self.R_i)
-        U_mB = self.mass_flow / self.cfe_state.rho/self.annulus_area
-        U_B = np.sqrt(U_thetaB**2 + U_mB**2)
-        M_B = U_B/self.cfe_state.a
-        gam = self.cfe_state.gamma
-        T_01 = self.T_in * ( 1 + (gam - 1) / 2 * M_B**2 )
-        P_01 = self.P_in * (T_01/self.T_in)**(gam/(gam-1))
-        return [T_01,U_thetaB,U_mB,P_01]
-
-
-class whitfield_turbine:
-    def __init__(self,CFE,static_turb_inputs,dynamic_turb_inputs,i):
-        self.i = i
-        self.state_01 = H2(t=static_turb_inputs["T_01"], p = self.CFE.P_in)
-        self.T_01 = static_turb_inputs["T_01"]
-        self.h_01 = self.state_01.h
-        self.delta_W = self.CFE.work_rate / self.CFE.mass_flow
-        self.S = self.delta_W / self.h_01 #Power ratio
-        self.T_03 = (1 - self.S) * self.T_01
+# class whitfield_turbine:
+#     def __init__(self,CFE,static_turb_inputs,dynamic_turb_inputs,i):
+#         self.i = i
+#         self.state_01 = H2(t=static_turb_inputs["T_01"], p = self.CFE.P_in)
+#         self.T_01 = static_turb_inputs["T_01"]
+#         self.h_01 = self.state_01.h
+#         self.delta_W = self.CFE.work_rate / self.CFE.mass_flow
+#         self.S = self.delta_W / self.h_01 #Power ratio
+#         self.T_03 = (1 - self.S) * self.T_01
 
 class turbine:
     def __init__(self,static_turb_inputs,dynamic_turb_inputs,i):
-        self.CFE = CFE
         self.static_turb_inputs = static_turb_inputs
+        self.fluid = self.static_turb_inputs["fluid"]
         self.i = i
         self.passed = True
         print(f'Turbine iteration {self.i}')
@@ -200,10 +76,10 @@ class turbine:
 
         self.deltah_0 = self.work_rate/self.mass_flow
         self.T_01 = static_turb_inputs["T_01"]
-        self.state_01 = H2(t=self.T_01, p = static_turb_inputs["P_01"])
+        self.state_01 = self.fluid(t=self.T_01, p = static_turb_inputs["P_01"])
         self.h_01 = self.state_01.h
         self.h_05 = self.state_01.h - self.deltah_0
-        self.state_05 = H2(h = self.h_05, P=static_turb_inputs["P_01"]/self.PR_ts)
+        self.state_05 = self.fluid(h = self.h_05, P=static_turb_inputs["P_01"]/self.PR_ts)
         self.epsilon_b = 0.5e-3
         self.Q = self.mass_flow / self.state_05.rho
         # print(self.state_01)
@@ -239,10 +115,10 @@ class turbine:
         self.beta_4 = self.beta_4_rad * 180 / np.pi
         self.W_4 = np.sqrt(self.C_m4**2 + (self.C_theta4-self.U_4)**2)
         self.h_04 = self.state_01.h
-        self.state_04 = H2(h=self.h_04,p=self.P_04)
+        self.state_04 = self.fluid(h=self.h_04,p=self.P_04)
         self.s_4 = self.state_04.s
         self.h_4 = self.h_04 - 0.5 * self.C_4**2  
-        self.state_4 = H2(s=self.s_4,h=self.h_4)
+        self.state_4 = self.fluid(s=self.s_4,h=self.h_4)
         self.b_4 = self.mass_flow / (2*np.pi*self.r_4*self.state_4.rho*self.C_m4)
         self.A_4 = 2 * np.pi * self.r_4 *self.b_4
         self.M_4 = self.C_4 / self.state_4.a
@@ -255,7 +131,7 @@ class turbine:
         self.C_5 = self.C_m5 #Rotor absolute velocity
         self.h_5 = self.h_05 - 0.5*self.C_5**2
         self.s_5 = self.state_05.s
-        self.state_5 = H2(h=self.h_5,s=self.s_5)
+        self.state_5 = self.fluid(h=self.h_5,s=self.s_5)
         self.A_5 = self.mass_flow/(self.state_5.rho * self.C_m5)
         self.r_s5 = np.sqrt((self.A_5/np.pi)+self.r_h5**2) #Rotor outlet shroud radius
         self.r_5 = (self.r_s5+self.r_h5)/2 #Rotor outlet mean radius
@@ -267,7 +143,7 @@ class turbine:
         self.beta_5_rad = np.arctan(self.W_theta5/self.W_m5)
         self.beta_5 = self.beta_5_rad * 180 / np.pi
         self.P_05 = self.state_05.p
-        self.state_5ss = H2(s = self.state_01.s,p = self.state_5.p)
+        self.state_5ss = self.fluid(s = self.state_01.s,p = self.state_5.p)
         self.M_5 = self.C_5/ self.state_5.a
         self.M_5_rel = self.W_5 / self.state_5.a
         self.beta_s5_rad = np.arctan(self.r_s5/self.r_5 * np.tan(self.beta_5_rad))
@@ -1242,7 +1118,7 @@ def find_turb(init_cfe,init_turb):
             print("Turbine enthalpy losses:",turb.h_loss)
         i += 1
         new_h_5ss = turb.h_01 - turb.deltah_0 / turb.eta_ts
-        turb.state_5ss = H2(h=new_h_5ss,s=turb.state_01.s)
+        turb.state_5ss = init_cfe.fluid(h=new_h_5ss,s=turb.state_01.s)
         new_P_5 =turb.state_5ss.p
         new_PR = turb.state_01.p / new_P_5
 
@@ -1252,7 +1128,7 @@ def find_turb(init_cfe,init_turb):
             "h_0ss" : 0,
         }
 
-        new_cfe = CFE(cfe.static_cfe_inputs,new_dynamic_turb_inputs,i)
+        new_cfe = CFE(**cfe.static_cfe_inputs)
         new_delta_h0 = new_cfe.work_rate / new_cfe.mass_flow
         new_delta_h0ss = new_delta_h0 / turb.eta_ts_loss
 
