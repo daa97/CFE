@@ -19,35 +19,6 @@ mpl.rc('xtick.minor', visible=True, size=1.5, width=0.5)
 mpl.rc('ytick.minor', visible=True, size=1.5, width=0.5)
 plt.rcParams['figure.constrained_layout.use'] =  True
 
-opts = {
-    "dim" : "Y",
-    "prelim" : "y",
-    "geom" : "y",
-    "stations" : ["Y","y"],
-    "losses" : "Y"
-}
-
-nozzle_inputs = {
-        "radius ratio" : 1.1,
-        "camber angle" : np.pi/6,
-        "ac" : 0.25,
-        "t_2c" : 0.025,
-        "t_3c" : 0.012,
-        "t_maxc" : 0.06,
-        "dc" : 0.4,
-        "sc" : 0.75,
-        "setting angle" : 10/180*np.pi
-    }
-
-
-dynamic_turb_inputs = {
-    "PR_ts" : 1.0008,
-    "eta_ts" : 0.9,
-    "h_0ss" : 0,
-    "N_s" : 0,
-    "v_s" : 0.696
-}
-
 class CFE:
     def __init__(self,static_cfe_inputs,dynamic_turb_inputs,i):
 
