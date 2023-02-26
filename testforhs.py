@@ -54,7 +54,8 @@ off_design_CFE = {
     "uranium_mass":0,
     "temp" : 300, #[K]
     "press" : 101.325e3, #Pa - Turbine Inlet Pressure
-    "fluid" : FluidsList.Air
+    "fluid" : FluidsList.Air,
+    "inlet_effects" : True
 }
 
 dynamic_turb_inputs = {
