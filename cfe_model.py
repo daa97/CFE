@@ -13,7 +13,7 @@ class CFE:
         self.mu = self.cfe_state.mu
         self.rho = self.cfe_state.rho #Density, [kg/m^3]
         self.nu = self.mu/self.rho #Kinematic viscosity [m^2 s^-1]
-        self.inlet_effects = kwargs["inlet_effects"]
+        self.off_design = kwargs["off_design"]
         
         """ Entry channel geometric properties """
         self.R_i = kwargs["inner_radius"] #CFE channel inner radius [m]
@@ -40,7 +40,7 @@ class CFE:
             "work_rate" : self.work_rate,
             "mass_flow" : self.mass_flow,
             "omega" : self.omega,
-            "fluid" : self.fluid
+            "fluid" : self.fluid,
         }
 
     def calc_mass(self):
@@ -62,8 +62,12 @@ class CFE:
         fric_coeff = .0015
         A = 3.33602; B = -35.00831; C = 107.19577; # experimental bearing friction coefficients
         I=0.00039205; d=.06      # inertia and diameter of tested bearing
-        base_load = 2*I/(fric_coeff * d/2) *np.sqrt(B**2 - 3*A*(C-self.omega))
-        TWR = 1.3
+        if self.off_design:
+            base_load = 2*I/(fric_coeff * d/2) *np.sqrt(B**2 - 3*A*(C-self.omega))
+            TWR = 1
+        else:
+            base_load = 450
+            TWR = 1.3        
         diams = [.020, .020, .060]
         load = base_load + (TWR * 9.806 * self.calc_mass())
         M1 = fric_coeff * (diams[0]/2) * load       # loaded bearing
@@ -99,19 +103,23 @@ class CFE:
         return self.M_visc
 
     def calc_inlet_inertial_moment(self):
-        if self.inlet_effects==False:
+        if self.off_design==False:
             return 0
         else:
             R_mean = (self.R_i+self.R_o) / 2
-            Isp_fluid = R_mean**2           # specific moment of inertia of the fluid
+            inlet_offset = .050             # 50 mm, distance of inlet pipe from central axis
+            inlet_theta = np.deg2rad(20)    # upwards tilt angle of inlet pipe
+            Isp_fluid = inlet_offset**2     # specific moment of inertia of the fluid
             omega_ttcf = self.omega/2       # approx. fluid rotation rate at stator inlet
             pipe_rad = 0.493/2 * 25.4/1e3   # inlet manifold pipe radius
-            pipe_area = np.pi * pipe_rad**2 # 
+            pipe_area = np.pi * pipe_rad**2
             vdot = self.mass_flow/self.rho
             #print("Vdot:", vdot)
             U_inlet = vdot / pipe_area
+            U_tan_inlet = U_inlet * np.cos(inlet_theta)
+
             #print("U inlet:", U_inlet)
-            omega_inlet = U_inlet / R_mean
+            omega_inlet = U_tan_inlet / inlet_offset
             #print("omega inlet:", omega_inlet)
             dL_sp = Isp_fluid * (omega_ttcf - omega_inlet) # change in angular momentum per unit mass of fluid
             #print("omega ttcf", omega_ttcf)
@@ -136,8 +144,10 @@ class CFE:
         #         Viscous Moment: {M_visc}
         #         Inlet Moment: {M_inlet}''')
         if M<0:
-            raise ValueError("Negative moment on the system!")
+            pass
+            #raise ValueError("Negative moment on the system!")
         work = M * self.omega
+        print("WORK:", work)
         return work
 
     def calc_static_turb_inputs(self):
