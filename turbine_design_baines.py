@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 import scipy.interpolate as inter
 from cfe_model import CFE
 import matplotlib as mpl
+from fluids import FluidsList
+H2 = FluidsList.H2
+air = FluidsList.Air
 mpl.rc('font', family='Times New Roman',size="10")
 mpl.rc('figure', figsize=(4.8,3.6))
 mpl.rc('legend', labelspacing=0.05)
