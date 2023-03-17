@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import scipy.interpolate as inter
 from cfe_model import CFE
 import matplotlib as mpl
+import cfe_model as cm
 from fluids import FluidsList
 H2 = FluidsList.H2
 air = FluidsList.Air
@@ -18,7 +19,7 @@ mpl.rc('mathtext', fontset="dejavuserif")
 mpl.rc('xtick.minor', visible=True, size=1.5, width=0.5)
 mpl.rc('ytick.minor', visible=True, size=1.5, width=0.5)
 plt.rcParams['figure.constrained_layout.use'] =  True
-
+np.set_printoptions(precision=5,suppress = True)
 P1 = np.load("P1.npz")
 m_U = np.load("uranium_mass.npz")
 
@@ -66,6 +67,9 @@ class turbine:
         self.fluid = self.static_turb_inputs["fluid"]
         self.i = i
         self.passed = True
+        self.marker = "o"
+        self.crit = "Feasible turbine"
+
         print(f'Turbine iteration {self.i}')
         #self.number_stations = static_turb_inputs["number of stations"]
         self.stations = self.make_stations()
@@ -108,7 +112,10 @@ class turbine:
         self.r_4 = self.U_4/self.omega # Rotor inlet radius [m]
         self.alpha_4 = 90 - 1* (10.8 + 14.2*self.N_s**2) # Rotor inlet angle [degrees]
         self.alpha_4_rad = self.alpha_4 / 180 * np.pi # Rotor inlet angle [radians]
+        # print("eta_ts:",self.eta_ts)
+        # print("h0ss:",self.h_0ss)
         self.P_04 = self.state_01.p - self.state_01.rho * self.h_0ss*(1-self.eta_ts)/4 # Rotor inlet total pressure [Pa]
+        # print("P_04:",self.P_04)
         self.C_theta4 = self.U_4 * self.eta_ts / (2*self.v_s**2) # Rotor inlet tangiential velocity [m/s]
         self.C_m4 = self.C_theta4 / np.tan(self.alpha_4*np.pi/180)
         self.C_4 = np.sqrt(self.C_m4**2 + self.C_theta4**2)
@@ -126,6 +133,8 @@ class turbine:
         self.A_4 = 2 * np.pi * self.r_4 *self.b_4
         self.M_4 = self.C_4 / self.state_4.a
         self.M_4_rel = self.W_4 / self.state_4.a
+        self.rho_4 = self.state_4.rho
+        self.Re_4 = self.rho_4 * self.C_4 * self.b_4 / self.state_4.mu
 
         """Total and static states at station 5"""
         self.r_h5 = 0.185*self.r_4 #Rotor outlet hub radius
@@ -153,6 +162,8 @@ class turbine:
         self.beta_s5 = self.beta_s5_rad * 180 / np.pi
         self.beta_h5_rad = np.arctan(self.r_h5/self.r_5 * np.tan(self.beta_5_rad))
         self.beta_h5 = self.beta_h5_rad * 180 / np.pi
+        self.rho_5 = self.state_5.rho
+        self.Re_5 = self.rho_5 * self.C_5 * self.b_5 / self.state_5.mu
         # print("r5/rs5",self.r_5/self.r_s5)
         # print("r5/rh5",self.r_5/self.r_h5)
         # print("tanbeta5",np.tan(self.beta_5))
@@ -196,12 +207,13 @@ class turbine:
             "leading edge thickness":self.t_lead,
             "trailing edge thickness": self.t_trail,
             "Number of rotor blades": self.n_r-2,
-            "Stator outlet radius": self.r_3,
-            "Stator inlet radius": self.r_2
+            "Stator outlet radius": self.r_3
         }
 
+        # self.rotor_geometry_matrix = np.concatenate()
+
     def turbine_feasibility_checks(self):
-        results = []
+        self.marker = "o"
         VR1 = self.C_m5/self.U_4
         rad_ratio = self.r_h5/self.r_4
         rohlik_rad_ratio_lim = 1.29*self.N_s
@@ -216,24 +228,32 @@ class turbine:
         else:
             self.passed = False
             print("Failed\n")
+            self.marker = "x"
+            self.crit = "Failed by other criteria"
 
         print(f'Radius ratio: {rad_ratio}')
         if self.r_s5/self.r_4 <= 0.78:
             print("Baljie radius ratio test passed")
         else:
             self.passed = False
+            self.marker = "x"
+            self.crit = "Failed by other criteria"
             print("Baljie radius ratio test failed")
         
         if rad_ratio <= 0.7:
             print("Rohlik radius ratio test passed")
         else:
             self.passed = False
+            self.marker = "x"
+            self.crit = "Failed by other criteria"
             print("Rohlik radius ratio test failed")
 
         if self.r_s5 < r_s5_check:
             print("Aungier radius check passed\n")
         else:
             self.passed = False
+            self.marker = "x"
+            self.crit = "Failed by other criteria"
             print("Aungier radius check failed\n")
         
         print(f"Meridional velocity ratio: {MVR}")
@@ -241,6 +261,8 @@ class turbine:
             print("Passed\n")
         else:
             self.passed = False
+            self.marker = "x"
+            self.crit = "Failed by other criteria"
             print("Failed\n")
         
         print(f'Stage reaction: {R}')
@@ -248,6 +270,8 @@ class turbine:
             print("Passed\n")
         else:
             self.passed = False
+            self.marker = "d"
+            self.crit = "Failed by stage reaction"
             print("Failed\n")
         
         print(f"Relative flow inlet angle: {self.beta_4}")
@@ -255,6 +279,14 @@ class turbine:
             print("Passed\n")
         else:
             self.passed = False
+            if self.marker == "d":
+                self.marker = "h"
+                self.crit = "Failed by reaction and blade angle"
+
+            else:
+                self.marker = "s"
+                self.crit = "Failed by relative inlet angle"
+
             print("Failed\n")
         
         print(f'Rotor axial length: {self.z_r}')
@@ -262,24 +294,28 @@ class turbine:
             print("Passed\n")
         else:
             self.passed = False
+            self.crit = "Failed by other criteria"
+
             print("Failed\n")
 
-        blade_blockage_inlet = self.n_r * self.t_lead / (2 * np.pi * np.sin(np.pi/2 - self.beta_4_rad))
+        blade_blockage_inlet = self.n_r * self.t_lead / (2 * np.pi * np.sin(np.pi/2 - np.abs(self.beta_4_rad)))
 
         print(f"Inlet blade metal blockage factor: {blade_blockage_inlet}")
         if blade_blockage_inlet < 0.5:
             print("Passed\n")
         else:
             self.passed = False
+            self.crit = "Failed by other criteria"
             print("Failed\n")        
 
-        blade_blockage_outlet = self.n_r * self.t_trail / (2 * np.pi * np.sin(np.pi/2 - self.beta_5_rad))
+        blade_blockage_outlet = self.n_r * self.t_trail / (2 * np.pi * np.sin(np.pi/2 - np.abs(self.beta_5_rad)))
 
         print(f"Outlet blade metal blockage factor: {blade_blockage_outlet}")
         if blade_blockage_outlet < 0.5:
             print("Passed\n")
         else:
             self.passed = False
+            self.crit = "Failed by other criteria"
             print("Failed\n")        
 
     def make_stations(self):#use this for making an h-s diagram later
@@ -311,7 +347,9 @@ class turbine:
     def calc_losses(self):
         """Values required for loss calculations"""
         beta = np.arctan(0.5 * (np.tan(self.beta_4_rad) + np.tan(self.beta_5_rad)))
+        # print("beta:",beta)
         chord_len = self.z_r / np.cos(beta)
+        # print("axial len:",self.z_r)
         r_t = self.r_5 #estimate the throat radius as the mean rotor outlet radius
         o_t = self.o_5
         b_t = o_t
@@ -344,16 +382,30 @@ class turbine:
         M_5_rel = self.M_5_rel
 
         """Incidence Losses"""
-        L_i_opt = 0.5 * (self.W_4*np.sin(np.abs(self.beta_4_rad) - np.pi/6))**2
+        if self.beta_4_rad + np.pi/6 > 0:
+            n = 3 
+        else:
+            n = 2
+        L_i_opt = 0.5 * self.W_4**2 * (np.abs(np.sin(self.beta_4_rad + np.pi/6)))**n
         L_i_a = (0.75 / (2 * (1 - self.M_4**2)))
         L_i_b = ((self.C_m4 / self.C_m5) * (self.C_m4 / self.U_4) * np.tan(self.alpha_4_rad) - 1)**2
-        L_i =  L_i_a * L_i_b * self.U_4**2 + L_i_opt
+        L_i =  L_i_opt + L_i_a * L_i_b * self.U_4**2
+        # print("beta_4:",self.beta_4)
+        # print("Relative flow inlet angle incidence losses:", L_i_opt)
         # print("Incidence Losses:",L_i)
 
         """Passage Losses"""
         L_p_f = L_h/D_h
+        # print(L_p_f)
         L_p_sf = 0.68 * (1 - (r_t/self.r_4)**2) * (np.cos(beta_t) / (b_t/chord_len))
+        # print(L_p_sf)
+        # print("beta_t:",beta_t)
+        # print("r_4:",self.r_4)
+        # print("b_t:",b_t)
+        # print("chord_len:",chord_len)
         L_p = m_f * 0.11 * (L_p_f + L_p_sf) * (self.W_4**2 + W_t**2)/2
+        # print("W_4:",self.W_4)
+        # print("W_t:",W_t)
         # print("Passage Losses:",L_p)
 
         """Windage Losses"""
@@ -430,15 +482,15 @@ Rotor outlet shroud blade angle: {self.beta_s5} [degrees]\n \
 Rotor axial length: {self.z_r * 1000} [mm]\n \
 Rotor leading edge thickness: {self.t_lead * 1000} [mm]\n \
 Rotor trailing edge thickness: {self.t_trail * 1000} [mm]\n \
-Number of rotor blades: {self.n_r}\n \
-Stator outlet radius: {self.r_3 * 1000} [mm]\n \
-Stator inlet radius: {self.r_2 * 1e3} [mm]\n\n'
+Number of rotor blades: {self.n_r}\n\n'
 
         stn4_str = f' \
 Rotor inlet stagnation pressure: {self.P_04/1000} [kPa]\n \
-Rotor inlet stagnation temperature: {self.state_04.T/1000} [K]\n \
+Rotor inlet stagnation temperature: {self.state_04.T} [K]\n \
 Rotor inlet pressure: {self.state_4.p/1000} [kPa]\n \
 Rotor inlet temperature: {self.state_4.T} [K]\n \
+Rotor stagnation enthalpy: {self.state_04.h} [kJ/kg-K]\n \
+Rotor enthalpy: {self.state_4.h} [kJ/kg-K]\n \
 Rotor inlet density: {self.state_4.rho} [kg m^-3]\n \
 Rotor inlet radius: {self.r_4*1000} [mm]\n \
 Absolute meridional velocity: {self.C_m4} [m s^-1]\n \
@@ -449,13 +501,17 @@ Relative tangential velocity: {self.W_theta4} [m s^-1]\n \
 Relative velocity: {self.W_4} [m s^-1]\n \
 Relative Mach no.: {self.M_4_rel} [m s^-1]\n \
 Rotor inlet absolute flow angle: {self.alpha_4} [degrees]\n \
-Rotor inlet relative flow angle: {self.beta_4} [degrees]\n\n'
+Rotor inlet relative flow angle: {self.beta_4} [degrees]\n \
+Rotor inlet absolute Reynolds number: {self.Re_4} \n\n'
 
         stn5_str = f' \
 Rotor outlet stagnation pressure: {self.P_05/1000} [kPa]\n \
-Rotor outlet stagnation temperature: {self.state_05.T/1000} [kPa]\n \
+Rotor outlet stagnation temperature: {self.state_05.T} [K]\n \
 Rotor outlet pressure: {self.state_5.p/1000} [kPa]\n \
 Rotor outlet temperature: {self.state_5.T} [K]\n \
+Rotor outlet stagnation enthalpy: {self.state_05.h} [kJ/kg-K]\n \
+Rotor outlet enthalpy: {self.state_5.h} [kJ/kg-K]\n \
+Rotor outlet isentropic enthalpy: {self.state_5ss.h} [kJ/kg-K]\n \
 Rotor outlet density: {self.state_5.rho} [kg m^-3]\n \
 Rotor outlet radius: {self.r_5*1000} [mm]\n \
 Absolute meridional velocity: {self.C_m5} [m s^-1]\n \
@@ -465,7 +521,8 @@ Relative tangential velocity: {self.W_theta5} [m s^-1]\n \
 Absolute Mach no.: {self.M_5} [m s^-1]\n \
 Relative Mach no.: {self.M_5_rel} [m s^-1]\n \
 Rotor outlet absolute flow angle: {0} [degrees]\n \
-Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
+Rotor outlet relative flow angle: {self.beta_5} [degrees]\n \
+Rotor outlet absolute Reynolds number: {self.Re_5} \n\n'
 
         strings = {
             "dim" : dim_title + dim_str,
@@ -520,8 +577,8 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
         plt.show()
     
     def make_hub_and_shroud(self):
-        n = 5
-        N_p = 21 # Number of points used to make the hub and shroud curves
+        n = 7
+        N_p = 50 # Number of points used to make the hub and shroud curves
 
         """Hub curve"""
         if self.r_4-self.r_h5 > self.z_r:
@@ -536,6 +593,8 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
         for i,theta in enumerate(thetas):
             hub_points[i,0] = R_c * np.cos(theta) 
             hub_points[i,1] = R_c * np.sin(theta) + R_c + self.r_h5
+            # plt.plot(hub_points[:,0],hub_points[:,1])
+            # plt.show()
 
         if L == self.r_4 -self.r_h5 - self.z_r:
             z = hub_points[-1,0]
@@ -597,10 +656,13 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
         m_s = np.linspace(0,shroud[-1,0],len(hub))
         hub_equal_coords = np.zeros((len(m_h),2))
         shroud_equal_coords = np.zeros((len(m_h),2))
-
         f_h = inter.interp1d(hub[:,0],hub[:,1:3],axis=0)
         f_s = inter.interp1d(shroud[:,0],shroud[:,1:3],axis=0)
         mid = np.zeros((len(m_h),3))
+        s = np.zeros((len(m_h),))
+        b = np.zeros((len(m_h),))
+        A = np.zeros((len(m_h),))
+        phi = np.zeros((len(m_h),))
 
 
         for i,m in enumerate(m_h):
@@ -612,8 +674,8 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
 
                 dx = (hub_equal_coords[i,0] - shroud_equal_coords[i,0])/2
                 dy = (shroud_equal_coords[i,1] - hub_equal_coords[i,1])/2
-                mid[i,1] = hub_equal_coords[i,0] - dx
-                mid[i,2] = hub_equal_coords[i,1] + dy
+                mid[i,1] = hub_equal_coords[i,0] - dx #mid-span z coords - not interpolated
+                mid[i,2] = hub_equal_coords[i,1] + dy #mid-span r coord - not interpolated
                 mid[i,0] = 0
 
             else:
@@ -624,16 +686,38 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
 
                 dx = (hub_equal_coords[i,0] - shroud_equal_coords[i,0])/2
                 dy = (shroud_equal_coords[i,1] - hub_equal_coords[i,1])/2
-                mid[i,1] = hub_equal_coords[i,0] - dx
-                mid[i,2] = hub_equal_coords[i,1] + dy
-                mid[i,0] = np.sqrt((mid[i,1]-mid[i-1,1])**2 + (mid[i,2]-mid[i-1,2])**2) + mid[i-1,0]
+
+                mid[i,1] = hub_equal_coords[i,0] - dx #mid-span z coords
+                mid[i,2] = hub_equal_coords[i,1] + dy #mid-span r coords
+                mid[i,0] = np.sqrt((mid[i,1]-mid[i-1,1])**2 + (mid[i,2]-mid[i-1,2])**2) + mid[i-1,0] #meridional length
+
+            s[i] = 2 * np.pi * mid[i,2] / self.n_r
+            b[i] = np.sqrt(dx**2 + dy**2)
+            A[i] = s[i] * b[i]
+            # if i == 0:
+            #     phi[i] = -np.pi/2
+            # else:
+            #     phi[i] = np.arctan((mid[i,2]-mid[i-1,2])/())
 
             plt.plot([hub_equal_coords[i,0],shroud_equal_coords[i,0]],[hub_equal_coords[i,1],shroud_equal_coords[i,1]])
         # print(mid)
+        print(b)
+        print(s)
+        print(A)
         plt.plot(mid[:,1],mid[:,2])
         plt.plot(shroud_points[:,0],shroud_points[:,1])
-        plt.xlim([-.01, 0.06])
-        plt.ylim([-.01, 0.06])
+        plt.axis("scaled")
+
+        plt.show()
+        a_scaled = np.divide(A,np.max(A))
+        b_scaled = np.divide(b,np.max(b))
+        b_scaled_rc = np.divide(b,R_c)
+        m_norm = np.flip(np.divide(mid[:,0],mid[-1,0]))
+        plt.plot(m_norm,a_scaled,label=r'[$A/A_{max}$]')
+        plt.plot(m_norm,b_scaled,label=r'[$b/b_{max}$]')
+        plt.plot(m_norm,b_scaled_rc,label=r'[$b/R_{c}$]')
+        plt.axis("scaled")
+        plt.legend()
         plt.show()
 
         """Hub and shroud wrap angles"""
@@ -725,7 +809,7 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
         plt.legend()
         plt.show()
 
-        return [theta_sd,theta_hd,beta_h,beta_s]
+        return [theta_sd,theta_hd,beta_h,beta_s,mid,s,b,A]
 
     def calc_vel_ratio(self,dynamic_turb_inputs):
         if dynamic_turb_inputs["v_s"] == "default":
@@ -743,8 +827,9 @@ Rotor outlet relative flow angle: {self.beta_5} [degrees]\n\n'
         
 class nozzle:
     def __init__(self,nozzle_inputs,turb):
+        prnt="y"
         self.N_n = nozzle_inputs["num_stators"] # Number of nozzle blades guess
-        self.N_p_n = 100
+        self.N_p_n = 500
         self.turb = turb
         self.sc = nozzle_inputs["sc"]
         self.theta = nozzle_inputs["camber angle"]
@@ -753,12 +838,10 @@ class nozzle:
         self.t_3c = nozzle_inputs["t_3c"]
         self.t_maxc = nozzle_inputs["t_maxc"]
         self.dc = nozzle_inputs["dc"]
-        self.radius_ratio = nozzle_inputs["radius ratio"]
         self.gam_guess = nozzle_inputs["setting angle"]
         # self.chi_2 = np.arctan((4 * self.bc)/(4*self.ac -1))
         # self.chi_3 = np.arctan()
         self.r_3 = turb.r_3
-        self.r_2 = self.r_3 * self.radius_ratio
         self.C_theta3 = turb.r_4 / turb.r_3 * turb.C_theta4
         self.h_03 = turb.state_01.h
         self.P_03 = turb.P_04
@@ -781,13 +864,9 @@ class nozzle:
 
         self.alpha_3_rad = np.abs(np.arctan(self.C_m3/self.C_theta3))
         self.alpha_3 = self.alpha_3_rad * 180 / np.pi
-        print(self.alpha_3)
         self.d_3 = 2 * np.pi * self.r_3 / self.N_n # Pitch is usually s but since s is entropy I am using d
-        print(self.d_3)
         self.o_3 = self.d_3 * np.sin(self.alpha_3_rad)
-        print("throat width:",self.o_3)
         self.c = 1/self.sc * self.d_3
-        print("chord len:",self.c)
 
         naca_output = self.calc_naca_profile()
         self.xcs = naca_output[0]
@@ -798,12 +877,16 @@ class nozzle:
         self.naca_pres_surf = naca_output[4]
         
         self.gamma_3 = self.find_setting_angle()
-        self.nozzle_blade = self.create_cascade(self.gamma_3,True)
+        if prnt=="y":
+            plot = True
+        else:
+            plot = False
+        self.nozzle_blade = self.create_cascade(self.gamma_3,plot)
+        self.r_2 = self.nozzle_blade[9]
         self.gamma_2 = np.arccos(self.r_3 * np.cos(self.gamma_3) / self.r_2)
-        print("Gamma 3:",self.gamma_3*180/np.pi)
         self.beta_3b = self.gamma_3 - self.naca_chi[-1]
         self.beta_2b = self.gamma_2 - self.naca_chi[0]
-        print(self.beta_2b*180/np.pi)
+
         alp_2_geom = self.find_alpha_2()
         self.alpha_2_rad = alp_2_geom[0]
         self.L = alp_2_geom[1]
@@ -823,8 +906,7 @@ class nozzle:
             self.s_2 = self.state_02.s
             self.state_2 = H2(s=self.s_2,h=h_2)
             rho_2_check = self.state_2.rho
-        print("C_3:",self.C_3)
-        print("C_2:",self.C_2)
+
         self.stator_geom = {
             "suction surface" : self.nozzle_blade[0],
             "pressure surface" : self.nozzle_blade[1],
@@ -834,7 +916,39 @@ class nozzle:
             "flow outlet angle" : self.alpha_3_rad,
             "flow inlet angle" :self.alpha_2_rad
         }
-        
+        self.suct_surf_solidworks = self.nozzle_blade[6][1::,:]
+        self.pres_surf_solidworks = self.nozzle_blade[7][1::,:]
+        self.camber_solidworks = self.nozzle_blade[8]
+
+        self.t_lead = self.c*self.t_2c
+
+        self.t_trail = self.c* self.t_3c
+
+        self.t_max = self.c * self.t_maxc
+
+        eval_otpt = self.nozzle_eval("n")
+        self.blade_loading = eval_otpt[0]
+        self.blkg_ratio = eval_otpt[1]
+
+        if prnt.lower() == "y":
+            print("Alpha 3:", self.alpha_3)
+            print("Stator outlet pitch:",self.d_3)
+            print("Throat width:",self.o_3)
+            print("Chord len:",self.c)
+            print("Stator inlet radius:",self.r_2)
+            print("Stator outlet radius:",self.r_3)
+            print("Radius ratio:",self.r_2/self.r_3)
+            print("Gamma 3:",self.gamma_3*180/np.pi)
+            print("Gamma 2:",self.gamma_2*180/np.pi)        
+            print("Inlet blade angle:",self.beta_2b*180/np.pi)
+            print("Outlet blade angle:",self.beta_3b*180/np.pi)
+            print()
+            print("C_3:",self.C_3)
+            print("C_2:",self.C_2)
+            print("Leading edge thickness:",self.t_lead)
+            print("Trailing edge thickness:",self.t_trail)
+            print("Max thickness:",self.t_max)
+
     def calc_naca_profile(self):
         N_p_n = self.N_p_n
         check = np.zeros((N_p_n,))
@@ -854,7 +968,12 @@ class nozzle:
         a = self.ac * self.c
         # print(a)
         # print("bdivc:",bc)
-        chi = np.zeros((N_p_n,1))
+        zte = np.zeros((N_p_n,))
+        dt = np.zeros((N_p_n,))
+        trs=np.zeros((N_p_n,))
+        es=np.zeros((N_p_n,))
+        zetas=np.zeros((N_p_n,))
+        chi = np.zeros((N_p_n,))
         chi[0] = np.arctan((4 * b) / (4*a - self.c))
         print("Chi_2",chi[0])
         chi[-1] = np.arctan((4* b) / (3*self.c - 4*a))
@@ -881,26 +1000,31 @@ class nozzle:
             if i == 1 or i==0:
                 pass
             else:
-                chi[i-1] = (np.arctan((ycs[i] - ycs[i-2]) / (xcs[i] - xcs[i-2])))
+                chi[i-1] = np.abs(np.arctan((ycs[i] - ycs[i-2]) / (xcs[i] - xcs[i-2])))
                 check[i-1] = chi[i-1] * 180 / np.pi
             if xc <= self.dc*self.c:
                 zeta = xc / (self.dc * self.c)
+                zetas[i] = zeta
                 # print("xc <= dc")
 
             else:
                 zeta = (self.c-xc) / (self.c-self.dc * self.c)
+                zetas[i] = zeta
                 # print("xc > dc")
             
             # print("zeta:",zeta)
             t_refc = self.t_2c*self.c + (self.t_3c*self.c-self.t_2c*self.c) * xc /(self.c)
+            trs[i] = t_refc
             # print("tref:",t_refc)
 
             # e = np.sqrt(0.4 * self.dc) * (0.03 * (1 - xc/self.c) * (1-zeta) + 0.95)
-            e = np.sqrt(0.4 * self.dc) * (0.95 * (1 + xc/self.c) * (1-zeta) +0.05)
+            e = np.sqrt(0.4 * self.dc) * (0.95 * (1 + xc/self.c) * (1-zeta) + 0.05)
+            es[i] = e
             # print("e:",e)
-
+            dt[i] = zeta **e
             tcs[i] = t_refc + (self.t_maxc*self.c-t_refc) * zeta **e
-            # print("t:",tc)
+            # if i < 1000:
+                # print(f'x/c: {xc/self.c:{1}.{3}} | zeta^e: {zeta**e:{1}.{3}} | t_ref: {t_refc:{1}.{3}} | tmax-tref: {(self.t_maxc*self.c - t_refc):{1}.{3}} | t: {tcs[i]:{1}.{3}}')
             if i >= 2:
                 pres[i-1,0] = xcs[i-1] + 0.5 * tcs[i-1] * np.sin(chi[i-1])
                 pres[i-1,1] = ycs[i-1] - 0.5 * tcs[i-1] * np.cos(chi[i-1])
@@ -923,12 +1047,23 @@ class nozzle:
         suc[-1,0] = xcs[-1] - 0.5 * tcs[-1] * np.sin(chi[-1])
         suc[-1,1] = ycs[-1] + 0.5 * tcs[-1] * np.cos(chi[-1])
         # print(chi)
+
+        res = np.transpose(np.array([np.divide(xcs,self.c),zetas,es,np.divide(trs,self.c),dt,np.divide(tcs,self.c)]))
+        # print(res)
+        # plt.plot(res[:,0],res[:,1],label="Zeta")
+        # plt.plot(res[:,0],res[:,2],label = "e")
+        # plt.plot(res[:,0],res[:,3],label = "tref/c")
+        # plt.plot(res[:,0],res[:,4],label = "tmax/c-tref/c",marker=".")
+        # plt.plot(res[:,0],res[:,5],label = "t/c")
+        # plt.legend()
+        # plt.show()
         return [xcs,ycs,chi,suc,pres]
 
     def create_cascade(self,gam_guess,final):
         rot_cam = np.zeros((self.N_p_n,2))
         rot_suc = np.zeros((self.N_p_n,2))
         rot_pres = np.zeros((self.N_p_n,2))
+        rot_r = np.zeros((self.N_p_n,))
         blade_2_cam = np.zeros((self.N_p_n,2))
         blade_2_suc = np.zeros((self.N_p_n,2))
         blade_2_pres = np.zeros((self.N_p_n,2))
@@ -942,6 +1077,7 @@ class nozzle:
             rotated_pres = rotate_blade_point(pres_point,gam_guess,c,self.r_3)
 
             rot_cam[i] = rotated_camber[0]
+            rot_r[i] = rotated_camber[2]
             rot_suc[i] = rotated_suc[0]
             rot_pres[i] = rotated_pres[0]
 
@@ -966,6 +1102,7 @@ class nozzle:
 
 
         """Find the throat of the stator cascade"""
+        r_2 = rot_r[0]
         min_point = rot_suc[-1]
         d = np.zeros((self.N_p_n,))
         for i,point in enumerate(blade_2_pres):
@@ -978,7 +1115,7 @@ class nozzle:
         throaty = [min_point[1],min_d_point[1]]
 
         if final ==True:
-            thetas = np.linspace(0, 2 * np.pi, num = 100)
+            thetas = np.linspace(1/3 * np.pi, np.pi*2/3, num = 100)
             circ = np.zeros((100,2))
             for i,theta in enumerate(thetas):
                 circ[i,0] = self.r_3 * (np.cos(theta))
@@ -989,29 +1126,45 @@ class nozzle:
             plt.plot(blade_2_pres[:,0],blade_2_pres[:,1])
             plt.plot(blade_2_cam[:,0],blade_2_cam[:,1])
             plt.plot(rot_cam[:,0],rot_cam[:,1])
-            plt.plot(rot_suc[:,0],rot_suc[:,1])
-            plt.plot(rot_pres[:,0],rot_pres[:,1])
+            plt.plot(rot_suc[:,0],rot_suc[:,1]) #,marker=".")
+            plt.plot(rot_pres[:,0],rot_pres[:,1]) #,marker=".")
+            # plt.xlim((-0.07,0.07))
+            # plt.ylim((-0.07,0.07))
+            plt.axis("scaled")
             plt.show()
+        z = np.ones((self.N_p_n,1))  
+        rot_pres_z = np.concatenate((rot_pres,z),axis=1)
+        rot_suc_z = np.concatenate((rot_suc,z),axis=1)
+        rot_cam_z = np.concatenate((rot_cam,z),axis=1)
 
-        return [rot_suc,rot_pres,rot_cam,min_d,min_point,min_d_point]
+        return [rot_suc,rot_pres,rot_cam,min_d,min_point,min_d_point,rot_suc_z,rot_pres_z,rot_cam_z,r_2]
 
     def find_setting_angle(self):
+
         throat_width = self.o_3
-        print("Throat width:",throat_width)
+        # print("Throat width:",throat_width)
         gam = self.gam_guess
-        print("gam:",gam)
+        # print("gam:",gam)
         rotated_blade = self.create_cascade(gam,False)
         throat_width_guess = rotated_blade[3]
-        print("o:",throat_width_guess)
+        # print("o:",throat_width_guess)
+        i = 0
         while np.round(throat_width,4) != np.round(throat_width_guess,4):
             gam = np.arcsin(np.sin(gam)*(throat_width/throat_width_guess))
             # print("gamma:",gam*180/np.pi)
             rotated_blade = self.create_cascade(gam,False)
             throat_width_guess = rotated_blade[3]
             # print("o:",throat_width_guess)
+            i +=1
+            if i>100:
+                print("This shit ain't converging bro")
+                rb = self.create_cascade(gam,True)
+                gam = -1
+                break 
         return gam
 
     def find_alpha_2(self):
+
         r = np.linspace(self.r_3,self.r_2,self.N_p_n)
         gammas = np.zeros((self.N_p_n,))
         betas = np.zeros((self.N_p_n,))
@@ -1020,26 +1173,26 @@ class nozzle:
         L = np.zeros((self.N_p_n))
         for i,gamma in enumerate(gammas):
             if i > 0:
-                gammas[i] = np.arccos(self.r_3 * np.cos(self.gamma_3) / r[i])
+                gammas[i] = np.abs(np.arccos(self.r_3 * np.cos(self.gamma_3) / r[i]))
                 betas[i] = gammas[i] - self.naca_chi[i]
-        gammas[-1] = self.gamma_2
-        betas[-1] = self.beta_2b
-        print("Gammas")
-        print(np.multiply(gammas,180/np.pi))
-        print("Betas")
-        print(betas)
+        # gammas[-1] = self.gamma_2
+        # betas[-1] = self.beta_2b
+        # print("Gammas")
+        # print(np.multiply(gammas,180/np.pi))
+        # print("Betas")
+        # print(betas)
         for i in range(len(L)):
             if i > 0:
                 L[i] = L[i-1] + (r[i]-r[i-1])/(np.sin((betas[i])))
-        print(L)
+        # print(L)
         i_star_1 = (3.6 * np.sqrt(10*self.t_2c*self.c/L[-1]) + 180/np.pi*np.abs((self.beta_3b-self.beta_2b)/3.4))
         i_star_2 = np.sqrt(L[-1]/(self.sc*self.c))
         i_star_3 = 180/np.pi*np.abs(self.beta_3b-self.beta_2b)/2
         i_star = (i_star_1*i_star_2-i_star_3) * np.pi/180
-        print(i_star*180/np.pi)
+        print("Incidence angle:",i_star*180/np.pi)
 
         alpha_2 = self.beta_2b - i_star * np.sign(self.beta_3b-self.beta_2b)
-        print(90-alpha_2*180/np.pi)
+        print("Alpha 2:",90-alpha_2*180/np.pi)
 
         return [alpha_2,L,i_star,gammas,betas]
 
@@ -1072,15 +1225,54 @@ class nozzle:
         # plt.show()
         pass
 
-    def nozzle_eval(self):
-        R_OL = self.N_n * (self.gamma_2-self.gamma_3) / (2*np.pi)
-        print("R_OL:",R_OL)
+    def nozzle_eval(self,printopt):
+        blkg_inlet = self.N_n * self.t_lead / (2 * np.pi * self.r_2 * np.sin(self.beta_2b))
+        blkg_outlet = self.N_n * self.t_trail / (2 * np.pi * self.r_3 * np.sin(self.beta_3b))
+
+        blkg_factor_inlet = 1 - blkg_inlet
+        inlet_blkg_lim = 0.5 * blkg_factor_inlet
+        blkg_factor_outlet = 1 - blkg_outlet
+        outlet_blkg_lim = 0.5 * blkg_factor_outlet
+
+
+        R_OL = self.N_n * (180/np.pi) * (self.gamma_2-self.gamma_3) / (360)
+
         deltaC_max = 4*np.pi * (self.r_3 * self.C_theta3 - self.r_2 * self.C_theta2) / (self.c * self.N_n)
-        print("Delta C max:",deltaC_max)
 
         BL_check = 2 * deltaC_max / (self.C_2 + self.C_3)
-        print("Blade Loading:",BL_check)
 
+        rad_ratio = self.r_2/self.r_3
+        if printopt.lower()=="y":
+            print(f'Inlet blade metal blockage limit:{inlet_blkg_lim}')
+            print(f'Inlet blockage: {blkg_inlet}')
+            print(f'Outlet blade metal blockage limit:{outlet_blkg_lim}')
+            print(f'Outlet blockage: {blkg_outlet}')
+
+            print("R_OL:",R_OL)
+
+            print("Delta C max:",deltaC_max)
+
+            print("Blade Loading:",BL_check)
+
+            print("Radius Ratio:", rad_ratio)
+
+            print("Outlet setting angle:",self.gamma_3 * 180/np.pi)
+
+        return [BL_check,blkg_outlet/outlet_blkg_lim]
+
+    def export_profile(self):
+        np.savetxt('suction_surface.csv',self.suct_surf_solidworks, delimiter=",")
+        with open('suction_surface.csv', 'r') as f_in, open('suction_surface.sldcrv', 'w') as f_out:
+            content = f_in.read().replace(',', 'm ')
+            f_out.write(content)
+        np.savetxt('pressure_surface.csv',self.pres_surf_solidworks, delimiter=",")
+        with open('pressure_surface.csv', 'r') as f_in, open('pressure_surface.sldcrv', 'w') as f_out:
+            content = f_in.read().replace(',', 'm ')
+            f_out.write(content)
+        np.savetxt('camberline.csv',self.camber_solidworks, delimiter=",")
+        with open('camberline.csv', 'r') as f_in, open('camberline.sldcrv', 'w') as f_out:
+            content = f_in.read().replace(',', 'm ')
+            f_out.write(content)
 
 def rotate_blade_point(point,gam_guess,c,r_3):
     rot_point = np.zeros((2,))
@@ -1102,14 +1294,15 @@ def make_second_blade(rot_point,N_n,i):
     blade_2[1] = np.sqrt(rb2**2 - blade_2[0]**2)
     return blade_2
 
-def find_turb(init_cfe,init_turb):
+def find_turb(init_turb):
     new_turb = init_turb
-    new_cfe = init_cfe
     i = new_turb.i
-    prt_opt ="N"
     while np.round(new_turb.eta_ts,4) != np.round(new_turb.eta_ts_loss,4):
+        if i < 10:
+            prt_opt ="N"
+        else: 
+            prt_opt = "Y"
         turb = new_turb
-        cfe = new_cfe
         if prt_opt =="Y":
             print("Turbine iteration:",turb.i)
             print("Turbine efficiency:",turb.eta_ts)
@@ -1121,7 +1314,7 @@ def find_turb(init_cfe,init_turb):
             print("Turbine enthalpy losses:",turb.h_loss)
         i += 1
         new_h_5ss = turb.h_01 - turb.deltah_0 / turb.eta_ts
-        turb.state_5ss = init_cfe.fluid(h=new_h_5ss,s=turb.state_01.s)
+        turb.state_5ss = turb.fluid(h=new_h_5ss,s=turb.state_01.s)
         new_P_5 =turb.state_5ss.p
         new_PR = turb.state_01.p / new_P_5
 
@@ -1131,8 +1324,8 @@ def find_turb(init_cfe,init_turb):
             "h_0ss" : 0,
         }
 
-        new_cfe = CFE(**cfe.static_cfe_inputs)
-        new_delta_h0 = new_cfe.work_rate / new_cfe.mass_flow
+        # new_cfe = CFE(**cfe.static_cfe_inputs)
+        new_delta_h0 = turb.work_rate / turb.mass_flow
         new_delta_h0ss = new_delta_h0 / turb.eta_ts_loss
 
         new_dynamic_turb_inputs = {
@@ -1146,17 +1339,23 @@ def find_turb(init_cfe,init_turb):
     new_turb.turbine_feasibility_checks()
     return new_turb
 
-def find_stator(nozzle_inputs,turb):
-    # gams = np.zeros(self.N_pb)
-    pass
 def print_stations(turb,nozzle):
     ste_stn = [turb.state_01, nozzle.state_02]   
 
 def find_lotsa_turbines(nu_s,cfe):
     data = np.zeros((len(nu_s),5))
+    mkrs = []
+    labels = []
     for i,nu in enumerate(nu_s):
         print(nu)
         data[i,0] = nu
+        opts = {
+    "dim" : "Y",
+    "prelim" : "y",
+    "geom" : "n",
+    "stations" : ["n","n"],
+    "losses" : "n"
+}
         dynamic_turb_inputs = {
         "PR_ts" : 1.0008,
         "eta_ts" : 0.9,
@@ -1164,22 +1363,29 @@ def find_lotsa_turbines(nu_s,cfe):
         "N_s" : 0,
         "v_s" : nu
         }
-        
+
         init_turb = turbine(cfe.static_turb_inputs,dynamic_turb_inputs,1)
-        test_turb = find_turb(cfe,init_turb)
+        test_turb = find_turb(init_turb)
+        test_turb.print_turbine(opts)
+        marker = fail_check(test_turb)
         data[i,1] = test_turb.flow_coef
         data[i,2] = test_turb.load_coef
         data[i,3] = test_turb.eta_ts
-        data[i,4] = test_turb.passed
-    return data
-def fail_check(data_point):
-    if data_point==0:
-        return "v"
-    else:
-        return "o"
+        mkrs.append(test_turb.marker)
+        labels.append(test_turb.crit)
 
-def plot_lotsa_turbines(Ts):
-    col = ['k','g','b','p','r']
+    return [data,mkrs,labels]
+
+def fail_check(turb):
+    if turb.passed:
+        return "o"
+    else:
+        return "v"
+
+def plot_lotsa_turbines_temp(Ts):
+    col = ['tab:blue','tab:orange','tab:green','tab:red','tab:purple','tab:brown','tab:pink','tab:gray','tab:olive','tab:cyan']
+    fig = plt.figure() 
+    ax = fig.add_subplot(projection='3d')  
     for i,T in enumerate(Ts):
         static_cfe_inputs = {
     "inner_radius" : 0.056, #Channel inner radius [m]
@@ -1189,22 +1395,157 @@ def plot_lotsa_turbines(Ts):
     "mass_flow" : 0.108, #CFE channel mass flow rate [kg s^-1]
     "uranium_mass":m_U["baseline"],
     "temp" : T, #[K]
-    "press" : 13.763 #MPa - Turbine Inlet Pressure
+    "press" : 13.763*1e6, #MPa - Turbine Inlet Pressure,
+    "fluid" : H2,
+    "inlet_effects" : False
     } 
-        test_cfe = CFE(static_cfe_inputs=static_cfe_inputs, dynamic_turb_inputs=dynamic_turb_inputs,i=1)
-        nu_s = np.linspace(0.6,0.74,10)
-        data = find_lotsa_turbines(nu_s,test_cfe)
-        fig = plt.figure()
-        ax = fig.add_subplot(projection='3d')   
+        print("CFE Inlet Temperature:",T,"[K]")
+        test_cfe = cm.CFE(**static_cfe_inputs)
+        nu_s = np.linspace(0.6,0.71,10)
+        turbines_output = find_lotsa_turbines(nu_s,test_cfe)
+        data = turbines_output[0]
+        markers = turbines_output[1]
+        labels = turbines_output[2]
         xs = data[:,2]
         ys = data[:,1]
         zs = data[:,3]
         # for i in data if passed = 0 change marker then readd to data
-        ax.scatter(xs, ys, zs, color = col[i],marker=fail_check(data[:,4]))
-        ax.set_xlabel(r'[$\psi$]')
-        ax.set_ylabel(r'[$\phi$]')
-        ax.set_zlabel(r'[$\eta_{ts}$]')
+        for q,point in enumerate(data):
+            if markers[q] == "o":
+                ax.scatter(T, point[0], point[3], color = 'white',marker=markers[q],edgecolors="tab:blue",label=labels[q])
+            else:
+                ax.scatter(T, point[0], point[3], color = 'tab:blue',marker=markers[q],label=labels[q])
+
+        ax.set_xlabel(r'$Temperature [K]$')
+        ax.set_ylabel(r'$\nu_{is}[-]$')
+        ax.set_zlabel(r'$\eta_{ts}[-]$')
+    plt.savefig(f"turbine_feasibility_sweep/temperature_nu_results.svg")
     plt.show()
+
+def plot_lotsa_turbines_press(Ps):
+    col = ['tab:blue','tab:orange','tab:green','tab:red','tab:purple','tab:brown','tab:pink','tab:gray','tab:olive','tab:cyan']
+    fig = plt.figure() 
+    ax = fig.add_subplot(projection='3d')  
+    for i,P in enumerate(Ps):
+        static_cfe_inputs = {
+    "inner_radius" : 0.056, #Channel inner radius [m]
+    "outer_radius" : 0.064, #Channel outer radius [m]
+    "length" : 0.94, #CFE channel length [m]
+    "rpm" : 7000, #CFE inner SiC cylinder revolutions per minute
+    "mass_flow" : 0.108, #CFE channel mass flow rate [kg s^-1]
+    "uranium_mass":m_U["baseline"],
+    "temp" : 450, #[K]
+    "press" : P*1e6, #MPa - Turbine Inlet Pressure,
+    "fluid" : H2,
+    "inlet_effects" : False
+    } 
+        print("CFE Turbine Inlet Pressure:",P,"[K]")
+        test_cfe = cm.CFE(**static_cfe_inputs)
+        nu_s = np.linspace(0.6,0.71,10)
+        turbines_output = find_lotsa_turbines(nu_s,test_cfe)
+        data = turbines_output[0]
+        markers = turbines_output[1]
+        labels=turbines_output[2]
+        xs = data[:,2]
+        ys = data[:,1]
+        zs = data[:,3]
+        # for i in data if passed = 0 change marker then readd to data
+        for q,point in enumerate(data):
+            if markers[q] == "o":
+                ax.scatter(P, point[0], point[3], color = 'white',marker=markers[q],edgecolors="tab:green",label=labels[q])
+            else:
+                ax.scatter(P, point[0], point[3], color = 'tab:green',marker=markers[q],label=labels[q])
+
+        ax.set_xlabel(r'$Pressure  [MPa]$')
+        ax.set_ylabel(r'$\nu_{is}[-]$')
+        ax.set_zlabel(r'$\eta_{ts}[-]$')
+        
+    plt.savefig(f"turbine_feasibility_sweep/pressure_nu_results.svg")
+    plt.show()
+
+def plot_lotsa_turbines_mass(Ms):
+    col = ['tab:blue','tab:orange','tab:green','tab:red','tab:purple','tab:brown','tab:pink','tab:gray','tab:olive','tab:cyan']
+    fig = plt.figure() 
+    ax = fig.add_subplot(projection='3d')  
+    for i,M in enumerate(Ms):
+        static_cfe_inputs = {
+    "inner_radius" : 0.056, #Channel inner radius [m]
+    "outer_radius" : 0.064, #Channel outer radius [m]
+    "length" : 0.94, #CFE channel length [m]
+    "rpm" : 7000, #CFE inner SiC cylinder revolutions per minute
+    "mass_flow" : M, #CFE channel mass flow rate [kg s^-1]
+    "uranium_mass":m_U["baseline"],
+    "temp" : 450, #[K]
+    "press" : 13.763*1e6, #MPa - Turbine Inlet Pressure,
+    "fluid" : H2,
+    "inlet_effects" : False
+    } 
+        print("CFE Turbine Mass Flow:",M,"[K]")
+        test_cfe = cm.CFE(**static_cfe_inputs)
+        nu_s = np.linspace(0.6,0.71,10)
+        turbines_output = find_lotsa_turbines(nu_s,test_cfe)
+        data = turbines_output[0]
+        markers = turbines_output[1]
+        xs = data[:,2]
+        ys = data[:,1]
+        zs = data[:,3]
+        # for i in data if passed = 0 change marker then readd to data
+        for q,point in enumerate(data):
+            if markers[q] == "o":
+                ax.scatter(M, point[0], point[3], color = 'white',marker=markers[q],edgecolors="tab:green")
+            else:
+                ax.scatter(M, point[0], point[3], color = 'tab:green',marker=markers[q])
+
+        ax.set_xlabel(r'$Mass Flow Rate  [\frac{kg}{s}]$')
+        ax.set_ylabel(r'$\nu_{is}[-]$')
+        ax.set_zlabel(r'$\eta_{ts}[-]$')
+    plt.savefig(f"turbine_feasibility_sweep/pressure_nu_results.svg")
+    plt.show()
+    # plt.legend(title="Normalized Parameter", title_fontproperties={"family": "Times New Roman:bold"})
+    # plt.xlabel("Parameter Normalized to Baseline Configuration")
+    # plt.ylabel(ylabel)
+
+def stator_sweep(key,vals,sweep_nozzle_inputs,turbine):
+    BL_array = np.zeros((len(vals),))
+    t_array = np.zeros((len(vals),))
+    blkg_array = np.zeros((len(vals),))
+
+
+    for i,value in enumerate(vals):
+        sweep_nozzle_inputs[key] = value
+        sweep_stator = nozzle(sweep_nozzle_inputs,turbine)
+        BL_array[i] = sweep_stator.blade_loading
+        t_array[i] = sweep_stator.t_trail
+        blkg_array[i] = sweep_stator.blkg_ratio
+    return [BL_array,t_array,blkg_array]
+
+def stator_sweep_vars(vals_dict,sweep_nozzle_inputs,turbine):
+    bl_fig, bl_axs = plt.subplots(len(vals_dict))
+    bl_fig.suptitle('Blade Loading Sweeps')
+    t_fig, t_axs = plt.subplots(len(vals_dict))
+    t_fig.suptitle('Trailing Edge Thickness Sweeps')
+    blkg_fig, blkg_axs = plt.subplots(len(vals_dict))
+    blkg_fig.suptitle('Outlet Blade Blockage Sweeps')
+    for i,key in enumerate(vals_dict):
+        print(key)
+        swp = stator_sweep(key,vals_dict[key],sweep_nozzle_inputs,turbine)
+        if len(vals_dict)==1:
+            bl_axs.plot(vals_dict[key],swp[0],label=key)
+            blkg_axs.plot(vals_dict[key],swp[2],label=key)
+            t_axs.plot(vals_dict[key],np.multiply(swp[1],1000),label=key)
+            blkg_axs.legend()
+            bl_axs.legend()
+            t_axs.legend()
+        else:
+            bl_axs[i].plot(vals_dict[key],swp[0],label=key)
+            blkg_axs[i].plot(vals_dict[key],swp[2],label=key)
+            t_axs[i].plot(vals_dict[key],np.multiply(swp[1],1000),label=key)
+            bl_axs[i].legend()
+            blkg_axs[i].legend()
+            t_axs[i].legend()
+
+    plt.show()
+
 if __name__ == "__main__":
     pass
 

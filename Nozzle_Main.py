@@ -24,7 +24,7 @@ class Contour:
 
         # Option A: imported contour
         self.X = X
-        self.Y = Y
+        rho = Y
         self.A_t = A_t
 
         default_geometry = {"L_star": .1, "theta_n": math.radians(30), "alpha": math.radians(15),
